@@ -29,7 +29,8 @@ class GithubRepositoryClientTests {
 	@Test
 	void fetchesEveryRepositoryPage() {
 		server.expect(requestTo(
-						"https://api.github.com/user/repos?visibility=public&affiliation=owner"
+						"https://api.github.com/user/repos?visibility=public"
+								+ "&affiliation=owner,collaborator,organization_member"
 								+ "&per_page=100&page=1&sort=updated&direction=desc"
 				))
 				.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
@@ -39,7 +40,8 @@ class GithubRepositoryClientTests {
 						.header("X-RateLimit-Remaining", "4999"));
 
 		server.expect(requestTo(
-						"https://api.github.com/user/repos?visibility=public&affiliation=owner"
+						"https://api.github.com/user/repos?visibility=public"
+								+ "&affiliation=owner,collaborator,organization_member"
 								+ "&per_page=100&page=2&sort=updated&direction=desc"
 				))
 				.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
@@ -47,7 +49,7 @@ class GithubRepositoryClientTests {
 						.header("X-RateLimit-Remaining", "4998"));
 
 		GithubRepositoryFetchResult result =
-				client.fetchOwnedPublicRepositories("test-token");
+				client.fetchParticipatingPublicRepositories("test-token");
 
 		assertThat(result.repositories())
 				.extracting(GithubRepositoryPayload::name)

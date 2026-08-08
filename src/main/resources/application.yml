@@ -26,6 +26,7 @@ spring:
             client-secret: ${GITHUB_CLIENT_SECRET:not-configured}
             scope:
               - read:user
+              - read:org
 
 server:
   forward-headers-strategy: framework

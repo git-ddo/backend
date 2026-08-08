@@ -70,7 +70,8 @@ http://localhost:8080/oauth2/authorization/github
 }
 ```
 
-이 시점에는 `read:user` scope만 요청하며 private 저장소 권한은 요청하지 않습니다.
+`read:user`와 조직 멤버십 확인을 위한 `read:org` scope를 요청합니다. private 저장소
+접근 권한인 `repo` scope는 요청하지 않습니다.
 
 PostgreSQL을 종료하려면 다음 명령을 사용합니다.
 
@@ -152,21 +153,45 @@ http://localhost:8080/v3/api-docs
 합니다. 로그인 세션은 HttpOnly `JSESSIONID` 쿠키로 전달되므로 Swagger UI에 토큰을
 직접 입력하지 않습니다.
 
-## GitHub public 저장소 조회
+## GitHub public 저장소 조회 및 검색
 
-GitHub 로그인 후 다음 API로 사용자가 소유한 public 저장소를 모두 조회합니다.
+GitHub 로그인 후 다음 API로 사용자가 소유하거나 참여한 public 저장소를 모두 조회합니다.
 
 ```text
 GET /api/v1/github/repositories
 ```
 
 서버가 GitHub API의 페이지당 최대 크기인 100개씩 조회하고, 다음 페이지가 있으면 끝까지
-가져온 뒤 하나의 응답으로 합쳐 반환합니다. 현재는 `affiliation=owner`를 사용하므로 다른
-사용자의 저장소에 collaborator로 참여한 경우나 조직 소유 저장소는 포함하지 않습니다.
-fork와 archived 저장소는 응답에 포함하며 각각의 필드로 구분합니다.
+가져온 뒤 하나의 응답으로 합쳐 반환합니다. `owner`, `collaborator`,
+`organization_member` 관계를 조회하므로 개인 소유 저장소뿐 아니라 협업한 저장소와
+조직 구성원으로 참여한 저장소도 포함합니다. fork와 archived 저장소는 응답에 포함하며
+각각의 필드로 구분합니다.
 
 응답에는 전체 개수, GitHub API 남은 요청 횟수, 전체 저장소 목록이 포함됩니다.
-이 단계에서는 목록을 DB에 저장하지 않습니다.
+조회한 목록은 DB에 동기화되며, 소유자(개인 또는 조직)나 프로젝트 이름으로 검색할 수
+있습니다. 검색 조건은 대소문자를 구분하지 않는 부분 일치이며 각각 생략할 수 있습니다.
+
+```text
+GET /api/v1/github/repositories/search?owner=git-ddo&name=backend
+```
+
+## 코칭 포트폴리오
+
+동기화된 저장소 1~5개를 선택하고 저장소별 역할, 참여 수준, 대표 역할과 기여 내용을
+입력해 코칭 포트폴리오를 생성합니다. 평가 분야는 복수 선택할 수 있으며 평가 목적은
+하나를 선택합니다.
+
+```text
+POST   /api/v1/portfolios
+GET    /api/v1/portfolios
+GET    /api/v1/portfolios/{portfolioId}
+PUT    /api/v1/portfolios/{portfolioId}
+DELETE /api/v1/portfolios/{portfolioId}
+```
+
+수정 요청에는 마지막 조회 응답의 `version`을 전달합니다. 다른 요청이 먼저 수정했다면
+`409 Conflict`를 반환합니다. 평가 요청 계약은 현재 포트폴리오 입력을 JSON 스냅샷으로
+보존하므로, 포트폴리오를 수정하고 재평가해도 이전 평가 입력과 결과를 유지할 수 있습니다.
 
 ## 데이터베이스 관리
 
