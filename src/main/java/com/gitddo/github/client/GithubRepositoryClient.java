@@ -22,7 +22,7 @@ public class GithubRepositoryClient {
 		this.githubRestClient = githubRestClient;
 	}
 
-	public GithubRepositoryFetchResult fetchOwnedPublicRepositories(String accessToken) {
+	public GithubRepositoryFetchResult fetchParticipatingPublicRepositories(String accessToken) {
 		List<GithubRepositoryPayload> repositories = new ArrayList<>();
 		Integer rateLimitRemaining = null;
 
@@ -55,7 +55,7 @@ public class GithubRepositoryClient {
 					.uri(uriBuilder -> uriBuilder
 							.path("/user/repos")
 							.queryParam("visibility", "public")
-							.queryParam("affiliation", "owner")
+							.queryParam("affiliation", "owner,collaborator,organization_member")
 							.queryParam("per_page", PER_PAGE)
 							.queryParam("page", page)
 							.queryParam("sort", "updated")
