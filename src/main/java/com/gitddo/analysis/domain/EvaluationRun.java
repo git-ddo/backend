@@ -16,6 +16,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "evaluation_runs")
@@ -24,6 +25,9 @@ public class EvaluationRun {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
+
+	@Column(name = "analysis_id", nullable = false, unique = true, updatable = false)
+	private UUID analysisId;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "portfolio_id", nullable = false)
@@ -42,6 +46,10 @@ public class EvaluationRun {
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "input_snapshot", nullable = false, columnDefinition = "jsonb")
 	private EvaluationInputSnapshot inputSnapshot;
+
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "evidence_snapshot", columnDefinition = "jsonb")
+	private P0EvidenceSnapshot evidenceSnapshot;
 
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(columnDefinition = "jsonb")
@@ -75,6 +83,7 @@ public class EvaluationRun {
 			throw new IllegalArgumentException("평가 순번은 1 이상이어야 합니다.");
 		}
 		this.portfolio = portfolio;
+		this.analysisId = UUID.randomUUID();
 		this.sequence = sequence;
 		this.portfolioVersion = portfolio.getVersion();
 		this.status = EvaluationStatus.REQUESTED;
@@ -83,14 +92,28 @@ public class EvaluationRun {
 		this.requestedAt = Instant.now();
 	}
 
-	public void start() {
+	public void startCollection() {
 		requireStatus(EvaluationStatus.REQUESTED);
-		this.status = EvaluationStatus.RUNNING;
+		this.status = EvaluationStatus.COLLECTING;
 		this.startedAt = Instant.now();
 	}
 
+	public void completeEvidenceCollection(P0EvidenceSnapshot evidenceSnapshot) {
+		requireStatus(EvaluationStatus.COLLECTING);
+		if (evidenceSnapshot == null) {
+			throw new IllegalArgumentException("P0 Evidence 스냅샷은 필수입니다.");
+		}
+		this.evidenceSnapshot = evidenceSnapshot;
+		this.status = EvaluationStatus.EVIDENCE_READY;
+	}
+
+	public void startAnalysis() {
+		requireStatus(EvaluationStatus.EVIDENCE_READY);
+		this.status = EvaluationStatus.ANALYZING;
+	}
+
 	public void succeed(String result) {
-		requireStatus(EvaluationStatus.RUNNING);
+		requireStatus(EvaluationStatus.ANALYZING);
 		if (result == null || result.isBlank()) {
 			throw new IllegalArgumentException("평가 결과는 필수입니다.");
 		}
@@ -100,9 +123,13 @@ public class EvaluationRun {
 	}
 
 	public void fail(String failureReason) {
-		requireStatus(EvaluationStatus.RUNNING);
+		if (status == EvaluationStatus.SUCCEEDED || status == EvaluationStatus.FAILED) {
+			throw new IllegalStateException("완료된 평가는 실패 상태로 변경할 수 없습니다.");
+		}
 		this.status = EvaluationStatus.FAILED;
-		this.failureReason = failureReason;
+		this.failureReason = failureReason == null || failureReason.isBlank()
+				? "평가 처리에 실패했습니다."
+				: failureReason;
 		this.completedAt = Instant.now();
 	}
 
@@ -116,6 +143,10 @@ public class EvaluationRun {
 
 	public Long getId() {
 		return id;
+	}
+
+	public UUID getAnalysisId() {
+		return analysisId;
 	}
 
 	public int getSequence() {
@@ -132,5 +163,25 @@ public class EvaluationRun {
 
 	public EvaluationInputSnapshot getInputSnapshot() {
 		return inputSnapshot;
+	}
+
+	public P0EvidenceSnapshot getEvidenceSnapshot() {
+		return evidenceSnapshot;
+	}
+
+	public String getFailureReason() {
+		return failureReason;
+	}
+
+	public Instant getRequestedAt() {
+		return requestedAt;
+	}
+
+	public Instant getStartedAt() {
+		return startedAt;
+	}
+
+	public Instant getCompletedAt() {
+		return completedAt;
 	}
 }

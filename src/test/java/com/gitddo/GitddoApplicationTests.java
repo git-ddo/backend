@@ -134,7 +134,13 @@ class GitddoApplicationTests {
 		mockMvc.perform(get("/v3/api-docs"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.info.title").value("Gitddo API"))
-				.andExpect(jsonPath("$.components.securitySchemes.sessionAuth").exists());
+				.andExpect(jsonPath("$.components.securitySchemes.sessionAuth").exists())
+				.andExpect(jsonPath(
+						"$.paths['/api/v1/portfolios/{portfolioId}/evaluations'].post"
+				).exists())
+				.andExpect(jsonPath(
+						"$.paths['/api/v1/portfolios/{portfolioId}/evaluations/{analysisId}'].get"
+				).exists());
 	}
 
 }
