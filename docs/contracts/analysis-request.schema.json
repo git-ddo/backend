@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gitddo.dev/contracts/analysis-request.schema.json",
+  "title": "Gitddo AI Analysis Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "analysisId",
+    "targetJob",
+    "targetCareerLevel",
+    "analysisPurpose",
+    "requestedAnalysisDepth",
+    "extractorVersion",
+    "repositories"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "analysisId": { "type": "string", "format": "uuid" },
+    "targetJob": { "enum": ["BACKEND", "FRONTEND", "AI", "CLOUD_INFRA"] },
+    "targetCareerLevel": { "enum": ["ENTRY", "JUNIOR", "MID", "SENIOR"] },
+    "analysisPurpose": { "enum": ["PORTFOLIO_ANALYSIS"] },
+    "requestedAnalysisDepth": { "enum": ["P0", "P1", "P2"] },
+    "extractorVersion": { "type": "string" },
+    "repositories": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/repository" }
+    }
+  },
+  "$defs": {
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositoryId",
+        "repositoryFullName",
+        "defaultBranch",
+        "snapshotHashAlgorithm",
+        "snapshotSha",
+        "completedEvidenceLevels",
+        "collectionWarnings",
+        "userClaims",
+        "evidence"
+      ],
+      "properties": {
+        "repositoryId": { "type": "string" },
+        "repositoryFullName": { "type": "string" },
+        "defaultBranch": { "type": ["string", "null"] },
+        "snapshotHashAlgorithm": { "enum": ["SHA1", "SHA256"] },
+        "snapshotSha": { "type": "string" },
+        "completedEvidenceLevels": {
+          "type": "array",
+          "items": { "enum": ["P0", "P1", "P2"] }
+        },
+        "collectionWarnings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/collectionWarning" }
+        },
+        "userClaims": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/userClaim" }
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      }
+    },
+    "collectionWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "path", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "path": { "type": ["string", "null"] },
+        "message": { "type": "string" }
+      }
+    },
+    "userClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimId",
+        "statement",
+        "participationLevel",
+        "participationStartedOn",
+        "participationEndedOn",
+        "relatedEvidenceRefs"
+      ],
+      "properties": {
+        "claimId": { "type": "string", "pattern": "^claim_[0-9]{3,}$" },
+        "statement": { "type": "string" },
+        "participationLevel": { "type": ["string", "null"] },
+        "participationStartedOn": { "type": ["string", "null"], "format": "date" },
+        "participationEndedOn": { "type": ["string", "null"], "format": "date" },
+        "relatedEvidenceRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceId",
+        "evidenceType",
+        "analysisDepth",
+        "repositoryId",
+        "repositoryFullName",
+        "snapshotHashAlgorithm",
+        "snapshotSha",
+        "factKey",
+        "valueType",
+        "value",
+        "path",
+        "startLine",
+        "endLine",
+        "commitSha",
+        "pullRequestNumber",
+        "sourceEvidenceRefs",
+        "derivedFromLevel"
+      ],
+      "properties": {
+        "evidenceId": { "type": "string", "pattern": "^ev_[0-9]{3,}$" },
+        "evidenceType": {
+          "enum": ["GITHUB_STATIC", "GITHUB_ACTIVITY", "CODE_EVIDENCE", "BACKEND_DERIVED"]
+        },
+        "analysisDepth": { "enum": ["P0", "P1", "P2"] },
+        "repositoryId": { "type": "string" },
+        "repositoryFullName": { "type": "string" },
+        "snapshotHashAlgorithm": { "enum": ["SHA1", "SHA256"] },
+        "snapshotSha": { "type": "string" },
+        "factKey": { "type": "string" },
+        "valueType": {
+          "enum": ["STRING", "BOOLEAN", "INTEGER", "DECIMAL", "STRING_LIST"]
+        },
+        "value": { "type": "string" },
+        "path": { "type": ["string", "null"] },
+        "startLine": { "type": ["integer", "null"] },
+        "endLine": { "type": ["integer", "null"] },
+        "commitSha": { "type": ["string", "null"] },
+        "pullRequestNumber": { "type": ["integer", "null"] },
+        "sourceEvidenceRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
+        },
+        "derivedFromLevel": { "enum": ["P0", "P1", "P2"], "type": ["string", "null"] }
+      }
+    }
+  }
+}

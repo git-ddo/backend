@@ -68,7 +68,7 @@ public class EvaluationController {
 	@GetMapping("/{analysisId}")
 	@Operation(
 			summary = "P0 평가 상태 및 Evidence 조회",
-			description = "EVIDENCE_READY 상태가 되면 수집된 P0 Evidence와 경고를 반환합니다."
+			description = "EVIDENCE_READY 상태가 되면 수집된 P0 Evidence와 AI 요청 본문을 반환합니다."
 	)
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "평가 상태 조회 성공"),

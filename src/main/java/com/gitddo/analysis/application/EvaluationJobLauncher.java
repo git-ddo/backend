@@ -14,13 +14,16 @@ public class EvaluationJobLauncher {
 
 	private final EvaluationService evaluationService;
 	private final P0EvidenceCollector p0EvidenceCollector;
+	private final AiAnalysisRequestAssembler aiAnalysisRequestAssembler;
 
 	public EvaluationJobLauncher(
 			EvaluationService evaluationService,
-			P0EvidenceCollector p0EvidenceCollector
+			P0EvidenceCollector p0EvidenceCollector,
+			AiAnalysisRequestAssembler aiAnalysisRequestAssembler
 	) {
 		this.evaluationService = evaluationService;
 		this.p0EvidenceCollector = p0EvidenceCollector;
+		this.aiAnalysisRequestAssembler = aiAnalysisRequestAssembler;
 	}
 
 	@Async("evaluationExecutor")
@@ -30,7 +33,15 @@ public class EvaluationJobLauncher {
 					evaluationService.startCollection(analysisId);
 			P0EvidenceSnapshot evidenceSnapshot =
 					p0EvidenceCollector.collect(githubAccessToken, inputSnapshot);
-			evaluationService.completeCollection(analysisId, evidenceSnapshot);
+			evaluationService.completeCollection(
+					analysisId,
+					evidenceSnapshot,
+					aiAnalysisRequestAssembler.assemble(
+							analysisId,
+							inputSnapshot,
+							evidenceSnapshot
+					)
+			);
 		} catch (Exception exception) {
 			evaluationService.fail(analysisId, safeFailureReason(exception));
 		}

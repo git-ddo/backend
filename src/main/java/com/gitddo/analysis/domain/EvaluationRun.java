@@ -1,5 +1,6 @@
 package com.gitddo.analysis.domain;
 
+import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.portfolio.domain.Portfolio;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -52,6 +53,10 @@ public class EvaluationRun {
 	private P0EvidenceSnapshot evidenceSnapshot;
 
 	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "ai_request", columnDefinition = "jsonb")
+	private AiAnalysisRequest aiRequest;
+
+	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(columnDefinition = "jsonb")
 	private String result;
 
@@ -98,12 +103,19 @@ public class EvaluationRun {
 		this.startedAt = Instant.now();
 	}
 
-	public void completeEvidenceCollection(P0EvidenceSnapshot evidenceSnapshot) {
+	public void completeEvidenceCollection(
+			P0EvidenceSnapshot evidenceSnapshot,
+			AiAnalysisRequest aiRequest
+	) {
 		requireStatus(EvaluationStatus.COLLECTING);
 		if (evidenceSnapshot == null) {
 			throw new IllegalArgumentException("P0 Evidence 스냅샷은 필수입니다.");
 		}
+		if (aiRequest == null) {
+			throw new IllegalArgumentException("AI 요청 본문은 필수입니다.");
+		}
 		this.evidenceSnapshot = evidenceSnapshot;
+		this.aiRequest = aiRequest;
 		this.status = EvaluationStatus.EVIDENCE_READY;
 	}
 
@@ -167,6 +179,10 @@ public class EvaluationRun {
 
 	public P0EvidenceSnapshot getEvidenceSnapshot() {
 		return evidenceSnapshot;
+	}
+
+	public AiAnalysisRequest getAiRequest() {
+		return aiRequest;
 	}
 
 	public String getFailureReason() {
