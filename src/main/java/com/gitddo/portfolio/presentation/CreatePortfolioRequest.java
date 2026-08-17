@@ -26,7 +26,7 @@ public record CreatePortfolioRequest(
 		@NotEmpty
 		Set<EvaluationArea> evaluationAreas,
 		@NotNull
-		@Size(min = 1, max = 5)
+		@Size(max = 5)
 		List<@Valid PortfolioRepositoryRequest> repositories
 ) {
 }

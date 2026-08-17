@@ -120,6 +120,10 @@ public class PortfolioRepositoryEntry {
 		return displayOrder;
 	}
 
+	public void changeDisplayOrder(int displayOrder) {
+		this.displayOrder = displayOrder;
+	}
+
 	public List<RepositoryRoleAssignment> getRoles() {
 		return List.copyOf(roles);
 	}

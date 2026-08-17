@@ -1,6 +1,7 @@
 package com.gitddo.portfolio;
 
 import com.gitddo.TestcontainersConfiguration;
+import com.gitddo.analysis.application.PortfolioEvaluationNotReadyException;
 import com.gitddo.analysis.application.EvaluationService;
 import com.gitddo.analysis.domain.EvaluationRun;
 import com.gitddo.analysis.domain.EvaluationRunRepository;
@@ -118,13 +119,14 @@ class PortfolioApiTests {
 	}
 
 	@Test
-	void rejectsRepositoryCountsOutsideOneToFive() throws Exception {
+	void allowsEmptyPortfolioAndRejectsMoreThanFiveRepositories() throws Exception {
 		mockMvc.perform(post("/api/v1/portfolios")
 						.with(oauthUser(user))
 						.with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(requestWithRepositories("[]")))
-				.andExpect(status().isBadRequest());
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.repositories.length()").value(0));
 
 		List<GithubRepository> repositories = new ArrayList<>();
 		repositories.add(repository);
@@ -249,6 +251,147 @@ class PortfolioApiTests {
 				.isEqualTo("핵심 API와 데이터 모델을 구현했습니다.");
 	}
 
+	@Test
+	void addsUpdatesAndRemovesSelectedRepository() throws Exception {
+		mockMvc.perform(post("/api/v1/portfolios")
+						.with(oauthUser(user))
+						.with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(validRequest(repository.getGithubId(), "저장소 관리")))
+				.andExpect(status().isCreated());
+		Portfolio portfolio = portfolioRepository
+				.findByOwnerGithubIdAndDeletedAtIsNullOrderByUpdatedAtDesc(user.getGithubId())
+				.getFirst();
+		GithubRepository selected = createAccessibleRepository(
+				user,
+				IDS.incrementAndGet(),
+				"selected-repository"
+		);
+
+		mockMvc.perform(post("/api/v1/portfolios/{id}/repositories", portfolio.getId())
+						.with(oauthUser(user))
+						.with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(addRepositoryRequest(selected.getGithubId(), 0L)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.version").value(1))
+				.andExpect(jsonPath("$.repositories.length()").value(2))
+				.andExpect(jsonPath("$.repositories[1].repositoryId")
+						.value(selected.getGithubId()));
+
+		mockMvc.perform(put(
+							"/api/v1/portfolios/{portfolioId}/repositories/{repositoryId}",
+							portfolio.getId(),
+							selected.getGithubId()
+						)
+						.with(oauthUser(user))
+						.with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(updateRepositoryEntryRequest(1L)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.version").value(2))
+				.andExpect(jsonPath("$.repositories[1].contributionDescription")
+						.value("검색 화면과 상태 관리를 구현했습니다."))
+				.andExpect(jsonPath("$.repositories[1].roles[0].roleType")
+						.value("FRONTEND"));
+
+		mockMvc.perform(delete(
+							"/api/v1/portfolios/{portfolioId}/repositories/{repositoryId}",
+							portfolio.getId(),
+							selected.getGithubId()
+						)
+						.param("version", "2")
+						.with(oauthUser(user))
+						.with(csrf()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.version").value(3))
+				.andExpect(jsonPath("$.repositories.length()").value(1));
+
+		mockMvc.perform(delete(
+							"/api/v1/portfolios/{portfolioId}/repositories/{repositoryId}",
+							portfolio.getId(),
+							repository.getGithubId()
+						)
+						.param("version", "3")
+						.with(oauthUser(user))
+						.with(csrf()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.version").value(4))
+				.andExpect(jsonPath("$.repositories.length()").value(0));
+
+		org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+						evaluationService.request(user.getGithubId(), portfolio.getId(), "coach-v1"))
+				.isInstanceOf(PortfolioEvaluationNotReadyException.class)
+				.hasMessage("평가를 요청하려면 포트폴리오에 저장소를 1개 이상 추가해야 합니다.");
+	}
+
+	@Test
+	void rejectsDuplicateInaccessibleAndSixthRepository() throws Exception {
+		mockMvc.perform(post("/api/v1/portfolios")
+						.with(oauthUser(user))
+						.with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(validRequest(repository.getGithubId(), "추가 제한")))
+				.andExpect(status().isCreated());
+		Portfolio portfolio = portfolioRepository
+				.findByOwnerGithubIdAndDeletedAtIsNullOrderByUpdatedAtDesc(user.getGithubId())
+				.getFirst();
+
+		mockMvc.perform(post("/api/v1/portfolios/{id}/repositories", portfolio.getId())
+						.with(oauthUser(user))
+						.with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(addRepositoryRequest(repository.getGithubId(), 0L)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message")
+						.value("이미 포트폴리오에 추가된 저장소입니다."));
+
+		GithubUser other = githubUserRepository.save(
+				new GithubUser(IDS.incrementAndGet(), "repository-other", null)
+		);
+		GithubRepository inaccessible = createAccessibleRepository(
+				other,
+				IDS.incrementAndGet(),
+				"inaccessible"
+		);
+		mockMvc.perform(post("/api/v1/portfolios/{id}/repositories", portfolio.getId())
+						.with(oauthUser(user))
+						.with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(addRepositoryRequest(inaccessible.getGithubId(), 0L)))
+				.andExpect(status().isBadRequest());
+
+		long version = 0L;
+		for (int index = 0; index < 4; index++) {
+			GithubRepository additional = createAccessibleRepository(
+					user,
+					IDS.incrementAndGet(),
+					"limit-" + index
+			);
+			mockMvc.perform(post("/api/v1/portfolios/{id}/repositories", portfolio.getId())
+							.with(oauthUser(user))
+							.with(csrf())
+							.contentType(MediaType.APPLICATION_JSON)
+							.content(addRepositoryRequest(additional.getGithubId(), version)))
+					.andExpect(status().isOk());
+			version++;
+		}
+
+		GithubRepository sixth = createAccessibleRepository(
+				user,
+				IDS.incrementAndGet(),
+				"sixth"
+		);
+		mockMvc.perform(post("/api/v1/portfolios/{id}/repositories", portfolio.getId())
+						.with(oauthUser(user))
+						.with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(addRepositoryRequest(sixth.getGithubId(), version)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message")
+						.value("포트폴리오 저장소는 최대 5개까지 추가할 수 있습니다."));
+	}
+
 	private GithubRepository createAccessibleRepository(
 			GithubUser owner,
 			long githubRepositoryId,
@@ -331,5 +474,32 @@ class PortfolioApiTests {
 				  ]
 				}
 				""".formatted(repositoryId, primary);
+	}
+
+	private String addRepositoryRequest(long repositoryId, long version) {
+		return """
+				{
+				  "version": %d,
+				  "repositoryId": %d,
+				  "contributionDescription": "선택한 저장소의 핵심 기능을 구현했습니다.",
+				  "roleSummary": "메인 백엔드 개발자",
+				  "roles": [
+				    {"roleType": "BACKEND", "participationLevel": "LEAD", "primary": true}
+				  ]
+				}
+				""".formatted(version, repositoryId);
+	}
+
+	private String updateRepositoryEntryRequest(long version) {
+		return """
+				{
+				  "version": %d,
+				  "contributionDescription": "검색 화면과 상태 관리를 구현했습니다.",
+				  "roleSummary": "프런트엔드 핵심 기능 담당",
+				  "roles": [
+				    {"roleType": "FRONTEND", "participationLevel": "CORE_CONTRIBUTOR", "primary": true}
+				  ]
+				}
+				""".formatted(version);
 	}
 }

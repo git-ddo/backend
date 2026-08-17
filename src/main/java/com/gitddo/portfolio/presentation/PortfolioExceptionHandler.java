@@ -1,6 +1,7 @@
 package com.gitddo.portfolio.presentation;
 
 import com.gitddo.portfolio.application.PortfolioNotFoundException;
+import com.gitddo.portfolio.application.PortfolioRepositoryNotFoundException;
 import com.gitddo.portfolio.application.PortfolioVersionConflictException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,17 @@ public class PortfolioExceptionHandler {
 	@ExceptionHandler(PortfolioNotFoundException.class)
 	ResponseEntity<PortfolioApiErrorResponse> handleNotFound(PortfolioNotFoundException exception) {
 		return response(HttpStatus.NOT_FOUND, "PORTFOLIO_NOT_FOUND", exception.getMessage());
+	}
+
+	@ExceptionHandler(PortfolioRepositoryNotFoundException.class)
+	ResponseEntity<PortfolioApiErrorResponse> handleRepositoryNotFound(
+			PortfolioRepositoryNotFoundException exception
+	) {
+		return response(
+				HttpStatus.NOT_FOUND,
+				"PORTFOLIO_REPOSITORY_NOT_FOUND",
+				exception.getMessage()
+		);
 	}
 
 	@ExceptionHandler({
