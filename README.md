@@ -194,6 +194,9 @@ DELETE /api/v1/portfolios/{portfolioId}
 POST   /api/v1/portfolios/{portfolioId}/repositories
 PUT    /api/v1/portfolios/{portfolioId}/repositories/{repositoryId}
 DELETE /api/v1/portfolios/{portfolioId}/repositories/{repositoryId}?version={version}
+
+POST   /api/v1/portfolios/{portfolioId}/evaluations
+GET    /api/v1/portfolios/{portfolioId}/evaluations/{analysisId}
 ```
 
 수정 요청에는 마지막 조회 응답의 `version`을 전달합니다. 다른 요청이 먼저 수정했다면
@@ -201,6 +204,16 @@ DELETE /api/v1/portfolios/{portfolioId}/repositories/{repositoryId}?version={ver
 보존하므로, 포트폴리오를 수정하고 재평가해도 이전 평가 입력과 결과를 유지할 수 있습니다.
 저장소 조회·검색 결과의 GitHub 저장소 ID를 저장소 추가 API에 전달하며, 저장소는 중복 없이
 최대 5개까지 추가할 수 있습니다.
+
+평가 요청은 `202 Accepted`와 외부 식별자인 `analysisId`를 반환합니다. 백그라운드 작업이
+저장소별 commit SHA를 고정하고 언어, 파일 트리, README, 빌드·CI·컨테이너·API 문서를
+선별해 P0 Evidence로 저장합니다. 상태 조회에서 `EVIDENCE_READY`가 반환되면
+`evidenceSnapshot`으로 수집 결과와 제외·잘림 경고를 확인할 수 있습니다.
+
+```text
+REQUESTED → COLLECTING → EVIDENCE_READY → ANALYZING → SUCCEEDED
+                                      ↘ FAILED
+```
 
 ## 데이터베이스 관리
 

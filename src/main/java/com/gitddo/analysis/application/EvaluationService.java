@@ -3,11 +3,14 @@ package com.gitddo.analysis.application;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.EvaluationRun;
 import com.gitddo.analysis.domain.EvaluationRunRepository;
+import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import com.gitddo.portfolio.application.PortfolioNotFoundException;
 import com.gitddo.portfolio.domain.Portfolio;
 import com.gitddo.portfolio.domain.PortfolioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 @Service
 public class EvaluationService {
@@ -44,5 +47,45 @@ public class EvaluationService {
 		return evaluationRunRepository.save(
 				new EvaluationRun(portfolio, sequence, snapshot, evaluatorVersion)
 		);
+	}
+
+	@Transactional
+	public EvaluationInputSnapshot startCollection(UUID analysisId) {
+		EvaluationRun run = evaluationRunRepository.findByAnalysisId(analysisId)
+				.orElseThrow(EvaluationNotFoundException::new);
+		run.startCollection();
+		return run.getInputSnapshot();
+	}
+
+	@Transactional
+	public void completeCollection(
+			UUID analysisId,
+			P0EvidenceSnapshot evidenceSnapshot
+	) {
+		EvaluationRun run = evaluationRunRepository.findByAnalysisId(analysisId)
+				.orElseThrow(EvaluationNotFoundException::new);
+		run.completeEvidenceCollection(evidenceSnapshot);
+	}
+
+	@Transactional
+	public void fail(UUID analysisId, String failureReason) {
+		EvaluationRun run = evaluationRunRepository.findByAnalysisId(analysisId)
+				.orElseThrow(EvaluationNotFoundException::new);
+		run.fail(failureReason);
+	}
+
+	@Transactional(readOnly = true)
+	public EvaluationRun get(
+			Long githubUserId,
+			Long portfolioId,
+			UUID analysisId
+	) {
+		return evaluationRunRepository
+				.findByAnalysisIdAndPortfolioIdAndPortfolioOwnerGithubId(
+						analysisId,
+						portfolioId,
+						githubUserId
+				)
+				.orElseThrow(EvaluationNotFoundException::new);
 	}
 }

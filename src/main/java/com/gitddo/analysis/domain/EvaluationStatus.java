@@ -2,7 +2,9 @@ package com.gitddo.analysis.domain;
 
 public enum EvaluationStatus {
 	REQUESTED,
-	RUNNING,
+	COLLECTING,
+	EVIDENCE_READY,
+	ANALYZING,
 	SUCCEEDED,
 	FAILED
 }
