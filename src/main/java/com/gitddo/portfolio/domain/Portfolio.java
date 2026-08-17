@@ -1,5 +1,6 @@
 package com.gitddo.portfolio.domain;
 
+import com.gitddo.github.domain.GithubRepository;
 import com.gitddo.member.domain.GithubUser;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
@@ -30,7 +31,7 @@ import java.util.Set;
 @Table(name = "portfolios")
 public class Portfolio {
 
-	public static final int MIN_REPOSITORIES = 1;
+	public static final int MIN_REPOSITORIES = 0;
 	public static final int MAX_REPOSITORIES = 5;
 
 	@Id
@@ -134,7 +135,7 @@ public class Portfolio {
 		if (selections == null
 				|| selections.size() < MIN_REPOSITORIES
 				|| selections.size() > MAX_REPOSITORIES) {
-			throw new IllegalArgumentException("포트폴리오 저장소는 1개 이상 5개 이하여야 합니다.");
+			throw new IllegalArgumentException("포트폴리오 저장소는 최대 5개까지 선택할 수 있습니다.");
 		}
 		if (selections.stream().anyMatch(selection ->
 				selection == null || selection.repository() == null)) {
@@ -160,6 +161,77 @@ public class Portfolio {
 					selection.roles()
 			));
 		}
+	}
+
+	public void addRepository(PortfolioRepositorySelection selection) {
+		if (this.repositories.size() >= MAX_REPOSITORIES) {
+			throw new IllegalArgumentException("포트폴리오 저장소는 최대 5개까지 추가할 수 있습니다.");
+		}
+		if (selection == null || selection.repository() == null) {
+			throw new IllegalArgumentException("저장소 정보는 필수입니다.");
+		}
+		if (hasRepository(selection.repository().getGithubId())) {
+			throw new IllegalArgumentException("이미 포트폴리오에 추가된 저장소입니다.");
+		}
+		this.repositories.add(new PortfolioRepositoryEntry(
+				this,
+				selection.repository(),
+				selection.contributionDescription(),
+				selection.roleSummary(),
+				this.repositories.size(),
+				selection.roles()
+		));
+		touch();
+	}
+
+	public void updateRepository(
+			Long githubRepositoryId,
+			String contributionDescription,
+			String roleSummary,
+			List<RoleSelection> roles
+	) {
+		PortfolioRepositoryEntry current = findRepository(githubRepositoryId);
+		int displayOrder = current.getDisplayOrder();
+		GithubRepository repository = current.getGithubRepository();
+		this.repositories.remove(current);
+		this.repositories.add(displayOrder, new PortfolioRepositoryEntry(
+				this,
+				repository,
+				contributionDescription,
+				roleSummary,
+				displayOrder,
+				roles
+		));
+		touch();
+	}
+
+	public void removeRepository(Long githubRepositoryId) {
+		PortfolioRepositoryEntry target = findRepository(githubRepositoryId);
+		this.repositories.remove(target);
+		for (int index = 0; index < this.repositories.size(); index++) {
+			this.repositories.get(index).changeDisplayOrder(index);
+		}
+		touch();
+	}
+
+	public boolean hasRepository(Long githubRepositoryId) {
+		return this.repositories.stream()
+				.anyMatch(entry -> entry.getGithubRepository().getGithubId()
+						.equals(githubRepositoryId));
+	}
+
+	private PortfolioRepositoryEntry findRepository(Long githubRepositoryId) {
+		return this.repositories.stream()
+				.filter(entry -> entry.getGithubRepository().getGithubId()
+						.equals(githubRepositoryId))
+				.findFirst()
+				.orElseThrow(() -> new IllegalArgumentException(
+						"포트폴리오에 포함되지 않은 저장소입니다: " + githubRepositoryId
+				));
+	}
+
+	private void touch() {
+		this.updatedAt = Instant.now();
 	}
 
 	private String requireTitle(String value) {

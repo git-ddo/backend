@@ -151,7 +151,9 @@ http://localhost:8080/v3/api-docs
 
 인증이 필요한 API를 실행하려면 같은 브라우저에서 먼저 GitHub 로그인을 완료해야
 합니다. 로그인 세션은 HttpOnly `JSESSIONID` 쿠키로 전달되므로 Swagger UI에 토큰을
-직접 입력하지 않습니다.
+직접 입력하지 않습니다. `POST`, `PUT`, `DELETE` 요청은 먼저 `GET /api/v1/csrf`를
+실행해 `XSRF-TOKEN` 쿠키를 발급받아야 합니다. Swagger UI는 쿠키 값을
+`X-XSRF-TOKEN` 헤더로 자동 전송합니다. 프런트엔드도 같은 쿠키와 헤더 규칙을 사용합니다.
 
 ## GitHub public 저장소 조회 및 검색
 
@@ -177,9 +179,10 @@ GET /api/v1/github/repositories/search?owner=git-ddo&name=backend
 
 ## 코칭 포트폴리오
 
-동기화된 저장소 1~5개를 선택하고 저장소별 역할, 참여 수준, 대표 역할과 기여 내용을
-입력해 코칭 포트폴리오를 생성합니다. 평가 분야는 복수 선택할 수 있으며 평가 목적은
-하나를 선택합니다.
+동기화된 저장소를 최대 5개까지 선택하고 저장소별 역할, 참여 수준, 대표 역할과 기여
+내용을 입력해 코칭 포트폴리오를 구성합니다. 저장소 없이 초안 포트폴리오를 만들 수
+있으며, 평가를 요청할 때는 저장소가 1개 이상 필요합니다. 평가 분야는 복수 선택할 수
+있으며 평가 목적은 하나를 선택합니다.
 
 ```text
 POST   /api/v1/portfolios
@@ -187,11 +190,17 @@ GET    /api/v1/portfolios
 GET    /api/v1/portfolios/{portfolioId}
 PUT    /api/v1/portfolios/{portfolioId}
 DELETE /api/v1/portfolios/{portfolioId}
+
+POST   /api/v1/portfolios/{portfolioId}/repositories
+PUT    /api/v1/portfolios/{portfolioId}/repositories/{repositoryId}
+DELETE /api/v1/portfolios/{portfolioId}/repositories/{repositoryId}?version={version}
 ```
 
 수정 요청에는 마지막 조회 응답의 `version`을 전달합니다. 다른 요청이 먼저 수정했다면
 `409 Conflict`를 반환합니다. 평가 요청 계약은 현재 포트폴리오 입력을 JSON 스냅샷으로
 보존하므로, 포트폴리오를 수정하고 재평가해도 이전 평가 입력과 결과를 유지할 수 있습니다.
+저장소 조회·검색 결과의 GitHub 저장소 ID를 저장소 추가 API에 전달하며, 저장소는 중복 없이
+최대 5개까지 추가할 수 있습니다.
 
 ## 데이터베이스 관리
 

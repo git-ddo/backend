@@ -19,6 +19,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -113,6 +114,19 @@ class GitddoApplicationTests {
 	void redirectsUnauthenticatedUserToLogin() throws Exception {
 		mockMvc.perform(get("/api/v1/me"))
 				.andExpect(status().is3xxRedirection());
+	}
+
+	@Test
+	void issuesCsrfTokenForAuthenticatedSession() throws Exception {
+		mockMvc.perform(get("/api/v1/csrf")
+						.with(oauth2Login().attributes(attributes -> {
+							attributes.put("id", 222333L);
+							attributes.put("login", "csrf-user");
+						})))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.token").isNotEmpty())
+				.andExpect(jsonPath("$.headerName").value("X-XSRF-TOKEN"))
+				.andExpect(cookie().exists("XSRF-TOKEN"));
 	}
 
 	@Test

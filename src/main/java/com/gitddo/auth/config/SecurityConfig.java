@@ -5,6 +5,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 @Configuration
 public class SecurityConfig {
@@ -16,8 +18,23 @@ public class SecurityConfig {
 	}
 
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	CookieCsrfTokenRepository csrfTokenRepository() {
+		CookieCsrfTokenRepository repository =
+				CookieCsrfTokenRepository.withHttpOnlyFalse();
+		repository.setHeaderName("X-XSRF-TOKEN");
+		return repository;
+	}
+
+	@Bean
+	SecurityFilterChain securityFilterChain(
+			HttpSecurity http,
+			CookieCsrfTokenRepository csrfTokenRepository
+	) throws Exception {
 		http
+				.csrf(csrf -> csrf
+						.csrfTokenRepository(csrfTokenRepository)
+						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+				)
 				.authorizeHttpRequests(authorize -> authorize
 						.requestMatchers(
 								"/actuator/health",
@@ -41,7 +58,7 @@ public class SecurityConfig {
 						.logoutUrl("/api/v1/logout")
 						.logoutSuccessUrl("/actuator/health")
 						.invalidateHttpSession(true)
-						.deleteCookies("JSESSIONID")
+						.deleteCookies("JSESSIONID", "XSRF-TOKEN")
 				);
 
 		return http.build();

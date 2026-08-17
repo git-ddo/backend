@@ -9,10 +9,13 @@ import com.gitddo.portfolio.domain.Portfolio;
 import com.gitddo.portfolio.domain.PortfolioRepository;
 import com.gitddo.portfolio.domain.PortfolioRepositorySelection;
 import com.gitddo.portfolio.domain.RoleSelection;
+import com.gitddo.portfolio.presentation.AddPortfolioRepositoryRequest;
 import com.gitddo.portfolio.presentation.CreatePortfolioRequest;
 import com.gitddo.portfolio.presentation.PortfolioRepositoryRequest;
 import com.gitddo.portfolio.presentation.PortfolioResponse;
+import com.gitddo.portfolio.presentation.PortfolioRoleRequest;
 import com.gitddo.portfolio.presentation.UpdatePortfolioRequest;
+import com.gitddo.portfolio.presentation.UpdatePortfolioRepositoryRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,9 +76,7 @@ public class PortfolioService {
 			UpdatePortfolioRequest request
 	) {
 		Portfolio portfolio = findOwnedPortfolio(githubUserId, portfolioId);
-		if (portfolio.getVersion() != request.version()) {
-			throw new PortfolioVersionConflictException();
-		}
+		validateVersion(portfolio, request.version());
 		portfolio.update(
 				request.title(),
 				request.evaluationPurpose(),
@@ -89,6 +90,57 @@ public class PortfolioService {
 	@Transactional
 	public void delete(Long githubUserId, Long portfolioId) {
 		findOwnedPortfolio(githubUserId, portfolioId).delete();
+	}
+
+	@Transactional
+	public PortfolioResponse addRepository(
+			Long githubUserId,
+			Long portfolioId,
+			AddPortfolioRepositoryRequest request
+	) {
+		Portfolio portfolio = findOwnedPortfolio(githubUserId, portfolioId);
+		validateVersion(portfolio, request.version());
+		PortfolioRepositoryRequest repositoryRequest = new PortfolioRepositoryRequest(
+				request.repositoryId(),
+				request.contributionDescription(),
+				request.roleSummary(),
+				request.roles()
+		);
+		portfolio.addRepository(resolveRepository(githubUserId, repositoryRequest));
+		return PortfolioResponse.from(portfolioRepository.saveAndFlush(portfolio));
+	}
+
+	@Transactional
+	public PortfolioResponse updateRepository(
+			Long githubUserId,
+			Long portfolioId,
+			Long repositoryId,
+			UpdatePortfolioRepositoryRequest request
+	) {
+		Portfolio portfolio = findOwnedPortfolio(githubUserId, portfolioId);
+		validateVersion(portfolio, request.version());
+		requirePortfolioRepository(portfolio, repositoryId);
+		portfolio.updateRepository(
+				repositoryId,
+				request.contributionDescription(),
+				request.roleSummary(),
+				toRoleSelections(request.roles())
+		);
+		return PortfolioResponse.from(portfolioRepository.saveAndFlush(portfolio));
+	}
+
+	@Transactional
+	public PortfolioResponse removeRepository(
+			Long githubUserId,
+			Long portfolioId,
+			Long repositoryId,
+			Long version
+	) {
+		Portfolio portfolio = findOwnedPortfolio(githubUserId, portfolioId);
+		validateVersion(portfolio, version);
+		requirePortfolioRepository(portfolio, repositoryId);
+		portfolio.removeRepository(repositoryId);
+		return PortfolioResponse.from(portfolioRepository.saveAndFlush(portfolio));
 	}
 
 	private List<PortfolioRepositorySelection> resolveRepositories(
@@ -119,19 +171,37 @@ public class PortfolioService {
 						"동기화되지 않은 저장소입니다: " + request.repositoryId()
 				));
 
-		List<RoleSelection> roles = request.roles().stream()
-				.map(role -> new RoleSelection(
-						role.roleType(),
-						role.participationLevel(),
-						role.primary()
-				))
-				.toList();
+		List<RoleSelection> roles = toRoleSelections(request.roles());
 		return new PortfolioRepositorySelection(
 				repository,
 				request.contributionDescription(),
 				request.roleSummary(),
 				roles
 		);
+	}
+
+	private List<RoleSelection> toRoleSelections(
+			List<PortfolioRoleRequest> requests
+	) {
+		return requests.stream()
+				.map(role -> new RoleSelection(
+						role.roleType(),
+						role.participationLevel(),
+						role.primary()
+				))
+				.toList();
+	}
+
+	private void validateVersion(Portfolio portfolio, Long version) {
+		if (version == null || portfolio.getVersion() != version) {
+			throw new PortfolioVersionConflictException();
+		}
+	}
+
+	private void requirePortfolioRepository(Portfolio portfolio, Long repositoryId) {
+		if (!portfolio.hasRepository(repositoryId)) {
+			throw new PortfolioRepositoryNotFoundException(repositoryId);
+		}
 	}
 
 	private GithubUser findGithubUser(Long githubUserId) {

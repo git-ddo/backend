@@ -35,6 +35,9 @@ public class EvaluationService {
 		Portfolio portfolio = portfolioRepository
 				.findByIdAndOwnerGithubIdAndDeletedAtIsNull(portfolioId, githubUserId)
 				.orElseThrow(PortfolioNotFoundException::new);
+		if (portfolio.getRepositories().isEmpty()) {
+			throw new PortfolioEvaluationNotReadyException();
+		}
 		EvaluationInputSnapshot snapshot = evaluationSnapshotFactory.create(portfolio);
 		int sequence = evaluationRunRepository.findLatestSequence(portfolioId) + 1;
 
