@@ -2,6 +2,7 @@ package com.gitddo.analysis.presentation;
 
 import com.gitddo.analysis.application.EvaluationNotFoundException;
 import com.gitddo.analysis.application.PortfolioEvaluationNotReadyException;
+import com.gitddo.analysis.application.UnsupportedAnalysisCombinationException;
 import com.gitddo.portfolio.application.PortfolioNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,17 @@ public class EvaluationExceptionHandler {
 		return response(
 				HttpStatus.BAD_REQUEST,
 				"PORTFOLIO_EVALUATION_NOT_READY",
+				exception.getMessage()
+		);
+	}
+
+	@ExceptionHandler(UnsupportedAnalysisCombinationException.class)
+	ResponseEntity<EvaluationApiErrorResponse> handleUnsupportedCombination(
+			UnsupportedAnalysisCombinationException exception
+	) {
+		return response(
+				HttpStatus.BAD_REQUEST,
+				"UNSUPPORTED_COMBINATION",
 				exception.getMessage()
 		);
 	}

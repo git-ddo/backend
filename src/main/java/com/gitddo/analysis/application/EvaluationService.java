@@ -4,6 +4,7 @@ import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.EvaluationRun;
 import com.gitddo.analysis.domain.EvaluationRunRepository;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
+import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.portfolio.application.PortfolioNotFoundException;
 import com.gitddo.portfolio.domain.Portfolio;
 import com.gitddo.portfolio.domain.PortfolioRepository;
@@ -60,11 +61,12 @@ public class EvaluationService {
 	@Transactional
 	public void completeCollection(
 			UUID analysisId,
-			P0EvidenceSnapshot evidenceSnapshot
+			P0EvidenceSnapshot evidenceSnapshot,
+			AiAnalysisRequest aiRequest
 	) {
 		EvaluationRun run = evaluationRunRepository.findByAnalysisId(analysisId)
 				.orElseThrow(EvaluationNotFoundException::new);
-		run.completeEvidenceCollection(evidenceSnapshot);
+		run.completeEvidenceCollection(evidenceSnapshot, aiRequest);
 	}
 
 	@Transactional

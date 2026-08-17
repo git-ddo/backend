@@ -207,8 +207,8 @@ GET    /api/v1/portfolios/{portfolioId}/evaluations/{analysisId}
 
 평가 요청은 `202 Accepted`와 외부 식별자인 `analysisId`를 반환합니다. 백그라운드 작업이
 저장소별 commit SHA를 고정하고 언어, 파일 트리, README, 빌드·CI·컨테이너·API 문서를
-선별해 P0 Evidence로 저장합니다. 상태 조회에서 `EVIDENCE_READY`가 반환되면
-`evidenceSnapshot`으로 수집 결과와 제외·잘림 경고를 확인할 수 있습니다.
+선별해 P0 Evidence로 저장한 뒤, AI 서버에 보낼 요청 JSON(`aiRequest`)으로 조립합니다.
+상태 조회에서 `EVIDENCE_READY`가 반환되면 `evidenceSnapshot`과 `aiRequest`를 확인할 수 있습니다.
 
 ```text
 REQUESTED → COLLECTING → EVIDENCE_READY → ANALYZING → SUCCEEDED
