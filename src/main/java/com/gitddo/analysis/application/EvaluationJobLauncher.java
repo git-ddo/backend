@@ -1,5 +1,8 @@
 package com.gitddo.analysis.application;
 
+import com.gitddo.analysis.client.PortfolioReportClient;
+import com.gitddo.analysis.contract.AiAnalysisRequest;
+import com.gitddo.analysis.contract.AiAnalysisResponse;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import org.springframework.scheduling.annotation.Async;
@@ -15,15 +18,21 @@ public class EvaluationJobLauncher {
 	private final EvaluationService evaluationService;
 	private final P0EvidenceCollector p0EvidenceCollector;
 	private final AiAnalysisRequestAssembler aiAnalysisRequestAssembler;
+	private final PortfolioReportClient portfolioReportClient;
+	private final AiAnalysisResponseValidator aiAnalysisResponseValidator;
 
 	public EvaluationJobLauncher(
 			EvaluationService evaluationService,
 			P0EvidenceCollector p0EvidenceCollector,
-			AiAnalysisRequestAssembler aiAnalysisRequestAssembler
+			AiAnalysisRequestAssembler aiAnalysisRequestAssembler,
+			PortfolioReportClient portfolioReportClient,
+			AiAnalysisResponseValidator aiAnalysisResponseValidator
 	) {
 		this.evaluationService = evaluationService;
 		this.p0EvidenceCollector = p0EvidenceCollector;
 		this.aiAnalysisRequestAssembler = aiAnalysisRequestAssembler;
+		this.portfolioReportClient = portfolioReportClient;
+		this.aiAnalysisResponseValidator = aiAnalysisResponseValidator;
 	}
 
 	@Async("evaluationExecutor")
@@ -33,15 +42,16 @@ public class EvaluationJobLauncher {
 					evaluationService.startCollection(analysisId);
 			P0EvidenceSnapshot evidenceSnapshot =
 					p0EvidenceCollector.collect(githubAccessToken, inputSnapshot);
-			evaluationService.completeCollection(
+			AiAnalysisRequest aiRequest = aiAnalysisRequestAssembler.assemble(
 					analysisId,
-					evidenceSnapshot,
-					aiAnalysisRequestAssembler.assemble(
-							analysisId,
-							inputSnapshot,
-							evidenceSnapshot
-					)
+					inputSnapshot,
+					evidenceSnapshot
 			);
+			evaluationService.completeCollection(analysisId, evidenceSnapshot, aiRequest);
+			AiAnalysisRequest analysisRequest = evaluationService.startAnalysis(analysisId);
+			AiAnalysisResponse report = portfolioReportClient.requestReport(analysisRequest);
+			aiAnalysisResponseValidator.validate(analysisRequest, report);
+			evaluationService.succeed(analysisId, report);
 		} catch (Exception exception) {
 			evaluationService.fail(analysisId, safeFailureReason(exception));
 		}

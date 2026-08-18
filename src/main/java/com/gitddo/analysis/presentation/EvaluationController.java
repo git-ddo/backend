@@ -43,7 +43,7 @@ public class EvaluationController {
 	@ResponseStatus(HttpStatus.ACCEPTED)
 	@Operation(
 			summary = "포트폴리오 P0 평가 요청",
-			description = "비동기로 GitHub Snapshot SHA를 고정하고 P0 Evidence를 수집합니다."
+			description = "비동기로 GitHub Snapshot SHA를 고정하고 P0 Evidence를 수집한 뒤 AI 리포트를 요청합니다."
 	)
 	@ApiResponses({
 			@ApiResponse(responseCode = "202", description = "평가 요청 접수"),
@@ -68,7 +68,7 @@ public class EvaluationController {
 	@GetMapping("/{analysisId}")
 	@Operation(
 			summary = "P0 평가 상태 및 Evidence 조회",
-			description = "EVIDENCE_READY 상태가 되면 수집된 P0 Evidence와 AI 요청 본문을 반환합니다."
+			description = "SUCCEEDED 상태가 되면 검증된 AI 리포트(report)를 함께 반환합니다."
 	)
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "평가 상태 조회 성공"),

@@ -46,6 +46,12 @@ management:
     health:
       show-details: always
 
+gitddo:
+  ai:
+    mode: ${GITDDO_AI_MODE:mock}
+    base-url: ${GITDDO_AI_BASE_URL:}
+    reports-path: ${GITDDO_AI_REPORTS_PATH:/internal/v1/portfolio-reports}
+
 springdoc:
   api-docs:
     enabled: ${SPRINGDOC_ENABLED:true}

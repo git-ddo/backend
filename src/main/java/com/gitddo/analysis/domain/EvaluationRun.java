@@ -1,6 +1,7 @@
 package com.gitddo.analysis.domain;
 
 import com.gitddo.analysis.contract.AiAnalysisRequest;
+import com.gitddo.analysis.contract.AiAnalysisResponse;
 import com.gitddo.portfolio.domain.Portfolio;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -58,7 +59,7 @@ public class EvaluationRun {
 
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(columnDefinition = "jsonb")
-	private String result;
+	private AiAnalysisResponse result;
 
 	@Column(name = "evaluator_version", length = 100)
 	private String evaluatorVersion;
@@ -124,9 +125,9 @@ public class EvaluationRun {
 		this.status = EvaluationStatus.ANALYZING;
 	}
 
-	public void succeed(String result) {
+	public void succeed(AiAnalysisResponse result) {
 		requireStatus(EvaluationStatus.ANALYZING);
-		if (result == null || result.isBlank()) {
+		if (result == null) {
 			throw new IllegalArgumentException("평가 결과는 필수입니다.");
 		}
 		this.status = EvaluationStatus.SUCCEEDED;
@@ -183,6 +184,10 @@ public class EvaluationRun {
 
 	public AiAnalysisRequest getAiRequest() {
 		return aiRequest;
+	}
+
+	public AiAnalysisResponse getResult() {
+		return result;
 	}
 
 	public String getFailureReason() {
