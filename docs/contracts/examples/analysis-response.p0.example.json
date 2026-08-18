@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0",
+  "analysisId": "11111111-1111-4111-8111-111111111111",
+  "evaluatorVersion": "mock-1.0",
+  "requestedAnalysisDepth": "P0",
+  "usedEvidenceLevels": ["P0"],
+  "summary": "BACKEND ENTRY 포트폴리오를 P0 근거만으로 해석했습니다. GitHub를 직접 보지 않았고, 전달된 Evidence와 UserClaim만 사용했습니다.",
+  "repositories": [
+    {
+      "repositoryId": "123",
+      "repositoryFullName": "git-ddo/backend",
+      "snapshotHashAlgorithm": "SHA1",
+      "snapshotSha": "commit-sha",
+      "findings": [
+        {
+          "findingId": "find_001",
+          "category": "DOCUMENTATION",
+          "severity": "POSITIVE",
+          "title": "문서 근거가 있습니다.",
+          "detail": "README를 확인했습니다.",
+          "evidenceRefs": ["ev_001"],
+          "claimRefs": []
+        }
+      ]
+    }
+  ],
+  "coaching": {
+    "strengths": [
+      {
+        "text": "README를 바탕으로 문서를 확인할 수 있습니다.",
+        "evidenceRefs": ["ev_001"]
+      }
+    ],
+    "gaps": [
+      {
+        "text": "활동 근거와 선별 코드가 없어 기여도와 코드 품질은 판단하지 않았습니다.",
+        "evidenceRefs": []
+      }
+    ],
+    "nextActions": [
+      {
+        "text": "다음 평가에서는 커밋·PR 근거(P1)를 추가해 기여 주장을 확인할 수 있습니다.",
+        "evidenceRefs": []
+      }
+    ],
+    "interviewQuestions": [
+      "git-ddo/backend의 디렉터리 구조와 빌드 도구를 어떻게 설명하시겠어요?"
+    ]
+  },
+  "limitations": [
+    {
+      "code": "P0_ONLY",
+      "message": "이번 근거에는 P0만 있어 구조·문서·스택만 해석했습니다. 코드 품질과 기여도는 단정하지 않았습니다."
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gitddo.dev/contracts/analysis-response.schema.json",
+  "title": "Gitddo AI Analysis Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "analysisId",
+    "evaluatorVersion",
+    "requestedAnalysisDepth",
+    "usedEvidenceLevels",
+    "summary",
+    "repositories",
+    "coaching",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "analysisId": { "type": "string", "format": "uuid" },
+    "evaluatorVersion": { "type": "string", "minLength": 1 },
+    "requestedAnalysisDepth": { "enum": ["P0", "P1", "P2"] },
+    "usedEvidenceLevels": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "enum": ["P0", "P1", "P2"] }
+    },
+    "summary": { "type": "string", "minLength": 1 },
+    "repositories": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/repositoryReport" }
+    },
+    "coaching": { "$ref": "#/$defs/coaching" },
+    "limitations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/limitation" }
+    }
+  },
+  "$defs": {
+    "repositoryReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositoryId",
+        "repositoryFullName",
+        "snapshotHashAlgorithm",
+        "snapshotSha",
+        "findings"
+      ],
+      "properties": {
+        "repositoryId": { "type": "string" },
+        "repositoryFullName": { "type": "string" },
+        "snapshotHashAlgorithm": { "enum": ["SHA1", "SHA256"] },
+        "snapshotSha": { "type": "string" },
+        "findings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/finding" }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "findingId",
+        "category",
+        "severity",
+        "title",
+        "detail",
+        "evidenceRefs",
+        "claimRefs"
+      ],
+      "properties": {
+        "findingId": { "type": "string", "pattern": "^find_[0-9]{3,}$" },
+        "category": {
+          "enum": [
+            "STRUCTURE",
+            "DOCUMENTATION",
+            "STACK",
+            "ACTIVITY",
+            "CONTRIBUTION",
+            "CODE_QUALITY"
+          ]
+        },
+        "severity": { "enum": ["INFO", "POSITIVE", "GAP", "RISK"] },
+        "title": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string", "minLength": 1 },
+        "evidenceRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
+        },
+        "claimRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^claim_[0-9]{3,}$" }
+        }
+      }
+    },
+    "coaching": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strengths", "gaps", "nextActions", "interviewQuestions"],
+      "properties": {
+        "strengths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coachingItem" }
+        },
+        "gaps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coachingItem" }
+        },
+        "nextActions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coachingItem" }
+        },
+        "interviewQuestions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "coachingItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "evidenceRefs"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1 },
+        "evidenceRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
+        }
+      }
+    },
+    "limitation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": [
+            "P0_ONLY",
+            "MISSING_ACTIVITY_EVIDENCE",
+            "MISSING_CODE_EVIDENCE"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
