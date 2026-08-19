@@ -1,7 +1,7 @@
 package com.gitddo.analysis.application;
 
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
-import com.gitddo.analysis.domain.P0EvidenceKind;
+import com.gitddo.analysis.domain.EvidenceKind;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import com.gitddo.github.client.GithubAnalysisClient;
 import com.gitddo.github.client.GithubBlobPayload;
@@ -79,31 +79,31 @@ class P0EvidenceCollectorTests {
 		assertThat(snapshot.evidence())
 				.extracting(P0EvidenceSnapshot.Evidence::kind)
 				.contains(
-						P0EvidenceKind.REPOSITORY_METADATA,
-						P0EvidenceKind.LANGUAGE_BREAKDOWN,
-						P0EvidenceKind.FILE_TREE_SUMMARY,
-						P0EvidenceKind.README,
-						P0EvidenceKind.BUILD_MANIFEST,
-						P0EvidenceKind.PROJECT_STRUCTURE
+						EvidenceKind.REPOSITORY_METADATA,
+						EvidenceKind.LANGUAGE_BREAKDOWN,
+						EvidenceKind.FILE_TREE_SUMMARY,
+						EvidenceKind.README,
+						EvidenceKind.BUILD_MANIFEST,
+						EvidenceKind.PROJECT_STRUCTURE
 				);
 		assertThat(snapshot.evidence())
-				.filteredOn(evidence -> evidence.kind() == P0EvidenceKind.README)
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.README)
 				.singleElement()
 				.satisfies(evidence -> {
 					assertThat(evidence.content()).contains("apiKey=[REDACTED]");
 					assertThat(evidence.snapshotSha()).isEqualTo("commit-sha");
 				});
 		assertThat(snapshot.evidence())
-				.filteredOn(evidence -> evidence.kind() == P0EvidenceKind.BUILD_MANIFEST)
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.BUILD_MANIFEST)
 				.hasSize(2);
 
 		String fileTreeSummaryId = snapshot.evidence().stream()
-				.filter(evidence -> evidence.kind() == P0EvidenceKind.FILE_TREE_SUMMARY)
+				.filter(evidence -> evidence.kind() == EvidenceKind.FILE_TREE_SUMMARY)
 				.findFirst()
 				.orElseThrow()
 				.evidenceId();
 		assertThat(snapshot.evidence())
-				.filteredOn(evidence -> evidence.kind() == P0EvidenceKind.PROJECT_STRUCTURE)
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.PROJECT_STRUCTURE)
 				.singleElement()
 				.satisfies(evidence -> {
 					assertThat(evidence.content()).contains("testFileCount=1");
@@ -123,6 +123,7 @@ class P0EvidenceCollectorTests {
 				EvaluationPurpose.PORTFOLIO_REVIEW,
 				TargetLevel.ENTRY,
 				Set.of(EvaluationArea.BACKEND),
+				"git-ddo-user",
 				List.of(new EvaluationInputSnapshot.RepositorySnapshot(
 						123L,
 						"git-ddo/backend",

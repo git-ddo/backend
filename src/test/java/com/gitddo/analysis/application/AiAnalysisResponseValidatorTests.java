@@ -117,6 +117,92 @@ class AiAnalysisResponseValidatorTests {
 				.isInstanceOf(InvalidAiAnalysisResponseException.class);
 	}
 
+	@Test
+	void rejectsDuplicateFindingIdsAcrossTheAnalysis() {
+		AiAnalysisResponse base = AnalysisContractFixtures.validP0Report();
+		AiAnalysisResponse.Finding finding = base.repositories().getFirst().findings().getFirst();
+		AiAnalysisResponse report = new AiAnalysisResponse(
+				base.schemaVersion(),
+				base.analysisId(),
+				base.evaluatorVersion(),
+				base.requestedAnalysisDepth(),
+				base.usedEvidenceLevels(),
+				base.summary(),
+				List.of(new AiAnalysisResponse.RepositoryReport(
+						"123",
+						"git-ddo/backend",
+						SnapshotHashAlgorithm.SHA1,
+						AnalysisContractFixtures.SNAPSHOT_SHA,
+						List.of(finding, finding)
+				)),
+				base.coaching(),
+				base.limitations()
+		);
+		assertThatThrownBy(() -> validator.validate(AnalysisContractFixtures.p0Request(), report))
+				.isInstanceOf(InvalidAiAnalysisResponseException.class)
+				.hasMessageContaining("findingId");
+	}
+
+	@Test
+	void rejectsNextActionsWithoutEvidence() {
+		AiAnalysisResponse base = AnalysisContractFixtures.validP0Report();
+		AiAnalysisResponse.Coaching coaching = base.coaching();
+		AiAnalysisResponse report = new AiAnalysisResponse(
+				base.schemaVersion(),
+				base.analysisId(),
+				base.evaluatorVersion(),
+				base.requestedAnalysisDepth(),
+				base.usedEvidenceLevels(),
+				base.summary(),
+				base.repositories(),
+				new AiAnalysisResponse.Coaching(
+						coaching.strengths(),
+						coaching.gaps(),
+						List.of(new AiAnalysisResponse.CoachingItem("P2를 수행하세요.", List.of())),
+						coaching.jobAppeal(),
+						coaching.portfolioStatements(),
+						coaching.interviewQuestions()
+				),
+				base.limitations()
+		);
+		assertThatThrownBy(() -> validator.validate(AnalysisContractFixtures.p0Request(), report))
+				.isInstanceOf(InvalidAiAnalysisResponseException.class)
+				.hasMessageContaining("nextActions");
+	}
+
+	@Test
+	void rejectsActivityFindingThatDoesNotCiteP1Evidence() {
+		AiAnalysisResponse base = AnalysisContractFixtures.validP0Report();
+		AiAnalysisResponse report = new AiAnalysisResponse(
+				base.schemaVersion(),
+				base.analysisId(),
+				base.evaluatorVersion(),
+				AnalysisDepth.P1,
+				List.of(AnalysisDepth.P0, AnalysisDepth.P1),
+				base.summary(),
+				List.of(new AiAnalysisResponse.RepositoryReport(
+						"123",
+						"git-ddo/backend",
+						SnapshotHashAlgorithm.SHA1,
+						AnalysisContractFixtures.SNAPSHOT_SHA,
+						List.of(new AiAnalysisResponse.Finding(
+								"find_001",
+								FindingCategory.ACTIVITY,
+								FindingSeverity.POSITIVE,
+								"기여가 큽니다.",
+								"README만 보고 활동을 단정했습니다.",
+								List.of("ev_001"),
+								List.of()
+						))
+				)),
+				base.coaching(),
+				List.of()
+		);
+		assertThatThrownBy(() -> validator.validate(AnalysisContractFixtures.p1Request(), report))
+				.isInstanceOf(InvalidAiAnalysisResponseException.class)
+				.hasMessageContaining("P1");
+	}
+
 	private AiAnalysisResponse withAnalysisId(String analysisId) {
 		AiAnalysisResponse base = AnalysisContractFixtures.validP0Report();
 		return new AiAnalysisResponse(

@@ -9,13 +9,14 @@ import com.gitddo.analysis.contract.TargetCareerLevel;
 import com.gitddo.analysis.contract.TargetJob;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.EvidenceType;
-import com.gitddo.analysis.domain.P0EvidenceKind;
+import com.gitddo.analysis.domain.EvidenceKind;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import com.gitddo.portfolio.domain.EvaluationArea;
 import com.gitddo.portfolio.domain.TargetLevel;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -55,7 +56,7 @@ public class AiAnalysisRequestAssembler {
 				targetJob(inputSnapshot),
 				targetCareerLevel(inputSnapshot.targetLevel()),
 				AnalysisPurpose.PORTFOLIO_ANALYSIS,
-				AnalysisDepth.P0,
+				requestedDepth(repositories),
 				evidenceSnapshot.extractorVersion(),
 				repositories
 		);
@@ -76,7 +77,7 @@ public class AiAnalysisRequestAssembler {
 				defaultBranch(repositoryEvidence),
 				hashAlgorithm,
 				repository.snapshotSha(),
-				List.of(AnalysisDepth.P0),
+				completedLevels(repositoryEvidence),
 				collectionWarnings(repository.repositoryId(), evidenceSnapshot),
 				userClaims,
 				repositoryEvidence.stream()
@@ -91,10 +92,13 @@ public class AiAnalysisRequestAssembler {
 			P0EvidenceSnapshot.Evidence evidence
 	) {
 		boolean derived = evidence.evidenceType() == EvidenceType.BACKEND_DERIVED;
+		AnalysisDepth depth = evidence.analysisDepth() == null
+				? AnalysisDepth.P0
+				: evidence.analysisDepth();
 		return new AiAnalysisRequest.Evidence(
 				evidence.evidenceId(),
 				evidence.evidenceType().name(),
-				AnalysisDepth.P0,
+				depth,
 				repository.repositoryId(),
 				repository.fullName(),
 				hashAlgorithm,
@@ -105,10 +109,10 @@ public class AiAnalysisRequestAssembler {
 				evidence.path(),
 				null,
 				null,
-				repository.snapshotSha(),
-				null,
+				evidence.commitSha() == null ? repository.snapshotSha() : evidence.commitSha(),
+				evidence.pullRequestNumber(),
 				evidence.sourceEvidenceRefs(),
-				derived ? AnalysisDepth.P0 : null
+				derived ? depth : null
 		);
 	}
 
@@ -174,9 +178,32 @@ public class AiAnalysisRequestAssembler {
 		return new ClaimAssignment(sequence, claims);
 	}
 
+	private List<AnalysisDepth> completedLevels(List<P0EvidenceSnapshot.Evidence> evidence) {
+		return evidence.stream()
+				.map(item -> item.analysisDepth() == null ? AnalysisDepth.P0 : item.analysisDepth())
+				.distinct()
+				.sorted(Comparator.comparingInt(this::rank))
+				.toList();
+	}
+
+	private AnalysisDepth requestedDepth(List<AiAnalysisRequest.Repository> repositories) {
+		return repositories.stream()
+				.flatMap(repository -> repository.completedEvidenceLevels().stream())
+				.max(Comparator.comparingInt(this::rank))
+				.orElse(AnalysisDepth.P0);
+	}
+
+	private int rank(AnalysisDepth depth) {
+		return switch (depth) {
+			case P0 -> 0;
+			case P1 -> 1;
+			case P2 -> 2;
+		};
+	}
+
 	private String defaultBranch(List<P0EvidenceSnapshot.Evidence> evidence) {
 		return evidence.stream()
-				.filter(item -> item.kind() == P0EvidenceKind.REPOSITORY_METADATA)
+				.filter(item -> item.kind() == EvidenceKind.REPOSITORY_METADATA)
 				.map(P0EvidenceSnapshot.Evidence::content)
 				.flatMap(content -> content.lines())
 				.filter(line -> line.startsWith("defaultBranch="))

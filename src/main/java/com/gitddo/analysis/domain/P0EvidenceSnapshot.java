@@ -1,5 +1,7 @@
 package com.gitddo.analysis.domain;
 
+import com.gitddo.analysis.contract.AnalysisDepth;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +17,7 @@ public record P0EvidenceSnapshot(
 
 	public static final int CURRENT_SCHEMA_VERSION = 1;
 	public static final String CURRENT_EXTRACTOR_VERSION = "p0-collector-1.0";
+	public static final String P1_EXTRACTOR_VERSION = "p0-p1-collector-1.0";
 
 	public P0EvidenceSnapshot {
 		repositories = List.copyOf(repositories);
@@ -40,10 +43,13 @@ public record P0EvidenceSnapshot(
 	public record Evidence(
 			String evidenceId,
 			EvidenceType evidenceType,
-			P0EvidenceKind kind,
+			EvidenceKind kind,
+			AnalysisDepth analysisDepth,
 			String repositoryId,
 			String snapshotSha,
 			String path,
+			String commitSha,
+			Integer pullRequestNumber,
 			String content,
 			String contentHash,
 			boolean truncated,

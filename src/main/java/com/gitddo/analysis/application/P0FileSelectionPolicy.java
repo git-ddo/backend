@@ -1,6 +1,6 @@
 package com.gitddo.analysis.application;
 
-import com.gitddo.analysis.domain.P0EvidenceKind;
+import com.gitddo.analysis.domain.EvidenceKind;
 import org.springframework.stereotype.Component;
 
 import java.util.Locale;
@@ -28,7 +28,7 @@ public class P0FileSelectionPolicy {
 			"cargo.toml"
 	);
 
-	public Optional<P0EvidenceKind> classify(String path) {
+	public Optional<EvidenceKind> classify(String path) {
 		String normalized = path.toLowerCase(Locale.ROOT);
 		String fileName = normalized.substring(normalized.lastIndexOf('/') + 1);
 
@@ -36,31 +36,31 @@ public class P0FileSelectionPolicy {
 			return Optional.empty();
 		}
 		if (!normalized.contains("/") && fileName.startsWith("readme")) {
-			return Optional.of(P0EvidenceKind.README);
+			return Optional.of(EvidenceKind.README);
 		}
 		if (BUILD_MANIFESTS.contains(fileName)) {
-			return Optional.of(P0EvidenceKind.BUILD_MANIFEST);
+			return Optional.of(EvidenceKind.BUILD_MANIFEST);
 		}
 		if (normalized.startsWith(".github/workflows/")
 				&& (normalized.endsWith(".yml") || normalized.endsWith(".yaml"))) {
-			return Optional.of(P0EvidenceKind.CI_CONFIGURATION);
+			return Optional.of(EvidenceKind.CI_CONFIGURATION);
 		}
 		if (fileName.equals("dockerfile")
 				|| fileName.startsWith("docker-compose")
 				|| fileName.startsWith("compose.")) {
-			return Optional.of(P0EvidenceKind.CONTAINER_CONFIGURATION);
+			return Optional.of(EvidenceKind.CONTAINER_CONFIGURATION);
 		}
 		if ((normalized.contains("openapi") || normalized.contains("swagger"))
 				&& (normalized.endsWith(".yml")
 						|| normalized.endsWith(".yaml")
 						|| normalized.endsWith(".json"))) {
-			return Optional.of(P0EvidenceKind.API_DOCUMENTATION);
+			return Optional.of(EvidenceKind.API_DOCUMENTATION);
 		}
 		return Optional.empty();
 	}
 
-	public int maxBytes(P0EvidenceKind kind) {
-		return kind == P0EvidenceKind.README
+	public int maxBytes(EvidenceKind kind) {
+		return kind == EvidenceKind.README
 				? MAX_README_BYTES
 				: MAX_FILE_BYTES;
 	}

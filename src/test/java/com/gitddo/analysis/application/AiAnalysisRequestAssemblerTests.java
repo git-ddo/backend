@@ -6,7 +6,7 @@ import com.gitddo.analysis.contract.AnalysisPurpose;
 import com.gitddo.analysis.contract.EvidenceValueType;
 import com.gitddo.analysis.contract.TargetCareerLevel;
 import com.gitddo.analysis.contract.TargetJob;
-import com.gitddo.analysis.domain.P0EvidenceKind;
+import com.gitddo.analysis.domain.EvidenceKind;
 import com.gitddo.github.client.GithubAnalysisClient;
 import com.gitddo.github.client.GithubBlobPayload;
 import com.gitddo.github.client.GithubCommitSnapshotPayload;
@@ -63,9 +63,9 @@ class AiAnalysisRequestAssemblerTests {
 			assertThat(repository.evidence())
 					.extracting(AiAnalysisRequest.Evidence::factKey)
 					.contains(
-							P0EvidenceKind.README.name(),
-							P0EvidenceKind.BUILD_MANIFEST.name(),
-							P0EvidenceKind.PROJECT_STRUCTURE.name()
+							EvidenceKind.README.name(),
+							EvidenceKind.BUILD_MANIFEST.name(),
+							EvidenceKind.PROJECT_STRUCTURE.name()
 					);
 			assertThat(repository.evidence())
 					.allMatch(item -> item.valueType() == EvidenceValueType.STRING);
@@ -80,6 +80,94 @@ class AiAnalysisRequestAssemblerTests {
 	}
 
 	@Test
+	void raisesDepthAndMapsActivityFieldsWhenP1EvidenceExists() {
+		var input = inputSnapshot();
+		var snapshot = new com.gitddo.analysis.domain.P0EvidenceSnapshot(
+				1,
+				com.gitddo.analysis.domain.P0EvidenceSnapshot.P1_EXTRACTOR_VERSION,
+				Instant.now(),
+				List.of(new com.gitddo.analysis.domain.P0EvidenceSnapshot.RepositorySnapshot(
+						"123",
+						"git-ddo/backend",
+						"commit-sha",
+						"tree-sha",
+						Map.of("Java", 10L),
+						1,
+						false
+				)),
+				List.of(
+						new com.gitddo.analysis.domain.P0EvidenceSnapshot.Evidence(
+								"ev_001",
+								com.gitddo.analysis.domain.EvidenceType.GITHUB_STATIC,
+								EvidenceKind.README,
+								AnalysisDepth.P0,
+								"123",
+								"commit-sha",
+								"README.md",
+								null,
+								null,
+								"# Backend",
+								"hash-1",
+								false,
+								List.of()
+						),
+						new com.gitddo.analysis.domain.P0EvidenceSnapshot.Evidence(
+								"ev_002",
+								com.gitddo.analysis.domain.EvidenceType.GITHUB_ACTIVITY,
+								EvidenceKind.COMMIT_SUMMARY,
+								AnalysisDepth.P1,
+								"123",
+								"commit-sha",
+								null,
+								"abc123",
+								null,
+								"sha=abc123",
+								"hash-2",
+								false,
+								List.of()
+						),
+						new com.gitddo.analysis.domain.P0EvidenceSnapshot.Evidence(
+								"ev_003",
+								com.gitddo.analysis.domain.EvidenceType.GITHUB_ACTIVITY,
+								EvidenceKind.PULL_REQUEST,
+								AnalysisDepth.P1,
+								"123",
+								"commit-sha",
+								null,
+								"def456",
+								12,
+								"number=12",
+								"hash-3",
+								false,
+								List.of()
+						)
+				),
+				List.of()
+		);
+
+		AiAnalysisRequest request = new AiAnalysisRequestAssembler()
+				.assemble(UUID.fromString("11111111-1111-4111-8111-111111111111"), input, snapshot);
+
+		assertThat(request.requestedAnalysisDepth()).isEqualTo(AnalysisDepth.P1);
+		assertThat(request.repositories()).singleElement().satisfies(repository -> {
+			assertThat(repository.completedEvidenceLevels())
+					.containsExactly(AnalysisDepth.P0, AnalysisDepth.P1);
+			assertThat(repository.evidence())
+					.filteredOn(item -> "COMMIT_SUMMARY".equals(item.factKey()))
+					.singleElement()
+					.satisfies(item -> {
+						assertThat(item.analysisDepth()).isEqualTo(AnalysisDepth.P1);
+						assertThat(item.commitSha()).isEqualTo("abc123");
+						assertThat(item.evidenceType()).isEqualTo("GITHUB_ACTIVITY");
+					});
+			assertThat(repository.evidence())
+					.filteredOn(item -> "PULL_REQUEST".equals(item.factKey()))
+					.singleElement()
+					.satisfies(item -> assertThat(item.pullRequestNumber()).isEqualTo(12));
+		});
+	}
+
+	@Test
 	void rejectsRequestWithoutBackendArea() {
 		var input = new com.gitddo.analysis.domain.EvaluationInputSnapshot(
 				1,
@@ -89,6 +177,7 @@ class AiAnalysisRequestAssemblerTests {
 				EvaluationPurpose.PORTFOLIO_REVIEW,
 				TargetLevel.ENTRY,
 				Set.of(EvaluationArea.FRONTEND),
+				"git-ddo-user",
 				List.of()
 		);
 		assertThatThrownBy(() ->
@@ -159,6 +248,7 @@ class AiAnalysisRequestAssemblerTests {
 				EvaluationPurpose.PORTFOLIO_REVIEW,
 				TargetLevel.ENTRY,
 				Set.of(EvaluationArea.BACKEND),
+				"git-ddo-user",
 				List.of(new com.gitddo.analysis.domain.EvaluationInputSnapshot.RepositorySnapshot(
 						123L,
 						"git-ddo/backend",

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gitddo.dev/contracts/analysis-error.schema.json",
+  "title": "Gitddo AI Analysis Error Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "analysisId", "code", "message", "retryable", "details"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "analysisId": { "type": ["string", "null"], "format": "uuid" },
+    "code": {
+      "enum": [
+        "INVALID_REQUEST",
+        "UNSUPPORTED_COMBINATION",
+        "POLICY_VIOLATION",
+        "LLM_TIMEOUT",
+        "LLM_RATE_LIMITED",
+        "LLM_SERVICE_ERROR",
+        "STRUCTURED_OUTPUT_INVALID",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "message": { "type": "string", "minLength": 1 },
+    "retryable": { "type": "boolean" },
+    "details": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

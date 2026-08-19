@@ -17,6 +17,7 @@ public record EvaluationInputSnapshot(
 		EvaluationPurpose evaluationPurpose,
 		TargetLevel targetLevel,
 		Set<EvaluationArea> evaluationAreas,
+		String githubLogin,
 		List<RepositorySnapshot> repositories
 ) {
 

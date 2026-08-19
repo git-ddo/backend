@@ -37,4 +37,35 @@ class MockPortfolioReportClientTests {
 		assertThatCode(() -> new AiAnalysisResponseValidator().validate(request, report))
 				.doesNotThrowAnyException();
 	}
+
+	@Test
+	void buildsP1ReportWithActivityAndContributionFindings() {
+		AiAnalysisRequest request = AnalysisContractFixtures.p1Request();
+		AiAnalysisResponse report = new MockPortfolioReportClient().requestReport(request);
+
+		assertThat(report.requestedAnalysisDepth()).isEqualTo(AnalysisDepth.P1);
+		assertThat(report.usedEvidenceLevels()).containsExactly(AnalysisDepth.P0, AnalysisDepth.P1);
+		assertThat(report.limitations())
+				.extracting(AiAnalysisResponse.Limitation::code)
+				.contains(LimitationCode.MISSING_CODE_EVIDENCE)
+				.doesNotContain(LimitationCode.P0_ONLY);
+		assertThat(report.coaching().jobAppeal().evidenceRefs()).isNotEmpty();
+		assertThat(report.coaching().interviewQuestions()).isNotEmpty()
+				.allMatch(question -> !question.evidenceRefs().isEmpty() || !question.claimRefs().isEmpty());
+		assertThat(report.coaching().nextActions())
+				.allMatch(item -> !item.evidenceRefs().isEmpty());
+		assertThat(report.repositories()).singleElement().satisfies(repository -> {
+			assertThat(repository.findings())
+					.extracting(AiAnalysisResponse.Finding::category)
+					.contains(FindingCategory.DOCUMENTATION, FindingCategory.ACTIVITY, FindingCategory.CONTRIBUTION)
+					.doesNotContain(FindingCategory.CODE_QUALITY);
+			assertThat(repository.findings())
+					.filteredOn(finding -> finding.category() == FindingCategory.ACTIVITY)
+					.isNotEmpty()
+					.allMatch(finding -> finding.evidenceRefs().contains("ev_003")
+							|| finding.evidenceRefs().contains("ev_004"));
+		});
+		assertThatCode(() -> new AiAnalysisResponseValidator().validate(request, report))
+				.doesNotThrowAnyException();
+	}
 }

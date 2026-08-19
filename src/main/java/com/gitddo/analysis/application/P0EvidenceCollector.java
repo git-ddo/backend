@@ -1,8 +1,9 @@
 package com.gitddo.analysis.application;
 
+import com.gitddo.analysis.contract.AnalysisDepth;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
+import com.gitddo.analysis.domain.EvidenceKind;
 import com.gitddo.analysis.domain.EvidenceType;
-import com.gitddo.analysis.domain.P0EvidenceKind;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import com.gitddo.github.client.GithubAnalysisClient;
 import com.gitddo.github.client.GithubBlobPayload;
@@ -129,7 +130,7 @@ public class P0EvidenceCollector {
 		candidates.add(candidate(
 				repositoryOrder,
 				EvidenceType.GITHUB_STATIC,
-				P0EvidenceKind.REPOSITORY_METADATA,
+				EvidenceKind.REPOSITORY_METADATA,
 				repositoryId,
 				snapshotSha,
 				null,
@@ -140,7 +141,7 @@ public class P0EvidenceCollector {
 		candidates.add(candidate(
 				repositoryOrder,
 				EvidenceType.GITHUB_STATIC,
-				P0EvidenceKind.LANGUAGE_BREAKDOWN,
+				EvidenceKind.LANGUAGE_BREAKDOWN,
 				repositoryId,
 				snapshotSha,
 				null,
@@ -162,7 +163,7 @@ public class P0EvidenceCollector {
 		EvidenceCandidate fileTreeSummaryCandidate = candidate(
 				repositoryOrder,
 				EvidenceType.GITHUB_STATIC,
-				P0EvidenceKind.FILE_TREE_SUMMARY,
+				EvidenceKind.FILE_TREE_SUMMARY,
 				repositoryId,
 				snapshotSha,
 				null,
@@ -201,7 +202,7 @@ public class P0EvidenceCollector {
 		candidates.add(candidate(
 				repositoryOrder,
 				EvidenceType.BACKEND_DERIVED,
-				P0EvidenceKind.PROJECT_STRUCTURE,
+				EvidenceKind.PROJECT_STRUCTURE,
 				repositoryId,
 				snapshotSha,
 				null,
@@ -354,9 +355,12 @@ public class P0EvidenceCollector {
 					"ev_%03d".formatted(index + 1),
 					candidate.evidenceType(),
 					candidate.kind(),
+					AnalysisDepth.P0,
 					candidate.repositoryId(),
 					candidate.snapshotSha(),
 					candidate.path(),
+					null,
+					null,
 					candidate.content(),
 					sha256(candidate.content()),
 					candidate.truncated(),
@@ -463,7 +467,7 @@ public class P0EvidenceCollector {
 	private EvidenceCandidate candidate(
 			int repositoryOrder,
 			EvidenceType evidenceType,
-			P0EvidenceKind kind,
+			EvidenceKind kind,
 			String repositoryId,
 			String snapshotSha,
 			String path,
@@ -517,14 +521,14 @@ public class P0EvidenceCollector {
 
 	private record SelectedFile(
 			GithubTreeEntryPayload entry,
-			P0EvidenceKind kind
+			EvidenceKind kind
 	) {
 	}
 
 	private record EvidenceCandidate(
 			int repositoryOrder,
 			EvidenceType evidenceType,
-			P0EvidenceKind kind,
+			EvidenceKind kind,
 			String repositoryId,
 			String snapshotSha,
 			String path,
