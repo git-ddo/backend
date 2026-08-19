@@ -1,6 +1,6 @@
 package com.gitddo.analysis.domain;
 
-public enum P0EvidenceKind {
+public enum EvidenceKind {
 	REPOSITORY_METADATA,
 	LANGUAGE_BREAKDOWN,
 	README,
@@ -9,5 +9,9 @@ public enum P0EvidenceKind {
 	CI_CONFIGURATION,
 	CONTAINER_CONFIGURATION,
 	API_DOCUMENTATION,
-	PROJECT_STRUCTURE
+	PROJECT_STRUCTURE,
+	COMMIT_SUMMARY,
+	PULL_REQUEST,
+	CHANGED_FILES,
+	ACTIVITY_SUMMARY
 }

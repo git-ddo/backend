@@ -55,13 +55,16 @@ public record AiAnalysisResponse(
 			List<CoachingItem> strengths,
 			List<CoachingItem> gaps,
 			List<CoachingItem> nextActions,
-			List<String> interviewQuestions
+			JobAppeal jobAppeal,
+			List<PortfolioStatement> portfolioStatements,
+			List<InterviewQuestion> interviewQuestions
 	) {
 
 		public Coaching {
 			strengths = strengths == null ? List.of() : List.copyOf(strengths);
 			gaps = gaps == null ? List.of() : List.copyOf(gaps);
 			nextActions = nextActions == null ? List.of() : List.copyOf(nextActions);
+			portfolioStatements = portfolioStatements == null ? List.of() : List.copyOf(portfolioStatements);
 			interviewQuestions = interviewQuestions == null ? List.of() : List.copyOf(interviewQuestions);
 		}
 	}
@@ -73,6 +76,42 @@ public record AiAnalysisResponse(
 
 		public CoachingItem {
 			evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
+		}
+	}
+
+	public record JobAppeal(
+			String text,
+			List<String> evidenceRefs
+	) {
+
+		public JobAppeal {
+			evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
+		}
+	}
+
+	public record PortfolioStatement(
+			String text,
+			List<String> evidenceRefs,
+			List<String> claimRefs
+	) {
+
+		public PortfolioStatement {
+			evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
+			claimRefs = claimRefs == null ? List.of() : List.copyOf(claimRefs);
+		}
+	}
+
+	public record InterviewQuestion(
+			String question,
+			String intent,
+			String answerGuide,
+			List<String> evidenceRefs,
+			List<String> claimRefs
+	) {
+
+		public InterviewQuestion {
+			evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
+			claimRefs = claimRefs == null ? List.of() : List.copyOf(claimRefs);
 		}
 	}
 

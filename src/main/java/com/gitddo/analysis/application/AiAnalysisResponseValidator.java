@@ -47,15 +47,17 @@ public class AiAnalysisResponseValidator {
 		Set<AnalysisDepth> completed = EnumSet.noneOf(AnalysisDepth.class);
 		Map<String, AiAnalysisRequest.Repository> requestById = new HashMap<>();
 		Set<String> allEvidenceIds = new HashSet<>();
+		Set<String> allClaimIds = new HashSet<>();
 		for (AiAnalysisRequest.Repository repository : request.repositories()) {
 			requestById.put(repository.repositoryId(), repository);
 			completed.addAll(repository.completedEvidenceLevels());
 			repository.evidence().forEach(evidence -> allEvidenceIds.add(evidence.evidenceId()));
+			repository.userClaims().forEach(claim -> allClaimIds.add(claim.claimId()));
 		}
 
 		validateUsedLevels(request.requestedAnalysisDepth(), completed, response.usedEvidenceLevels());
 		validateRepositories(request, response, requestById);
-		validateCoachingRefs(response, allEvidenceIds);
+		validateCoaching(response.coaching(), allEvidenceIds, allClaimIds);
 		validateFindingIds(response);
 	}
 
@@ -160,31 +162,114 @@ public class AiAnalysisResponseValidator {
 				throw invalid("요청에 없는 UserClaim ID를 인용했습니다: " + claimId);
 			}
 		}
+		if (finding.category() == FindingCategory.ACTIVITY
+				&& !citesDepth(finding.evidenceRefs(), evidenceDepths, AnalysisDepth.P1)) {
+			throw invalid("ACTIVITY 항목은 P1 Evidence를 인용해야 합니다.");
+		}
+		if (finding.category() == FindingCategory.CODE_QUALITY
+				&& !citesDepth(finding.evidenceRefs(), evidenceDepths, AnalysisDepth.P2)) {
+			throw invalid("CODE_QUALITY 항목은 P2 Evidence를 인용해야 합니다.");
+		}
 	}
 
-	private void validateCoachingRefs(AiAnalysisResponse response, Set<String> allEvidenceIds) {
-		validateItems(response.coaching().strengths(), allEvidenceIds);
-		validateItems(response.coaching().gaps(), allEvidenceIds);
-		validateItems(response.coaching().nextActions(), allEvidenceIds);
-		for (String question : response.coaching().interviewQuestions()) {
-			if (isBlank(question)) {
-				throw invalid("interviewQuestions에 빈 항목이 있습니다.");
+	private boolean citesDepth(
+			List<String> evidenceRefs,
+			Map<String, AnalysisDepth> evidenceDepths,
+			AnalysisDepth expected
+	) {
+		return evidenceRefs.stream()
+				.map(evidenceDepths::get)
+				.anyMatch(expected::equals);
+	}
+
+	private void validateCoaching(
+			AiAnalysisResponse.Coaching coaching,
+			Set<String> allEvidenceIds,
+			Set<String> allClaimIds
+	) {
+		validateRecommendationItems(coaching.strengths(), allEvidenceIds, "strengths");
+		validateRecommendationItems(coaching.gaps(), allEvidenceIds, "gaps");
+		validateRecommendationItems(coaching.nextActions(), allEvidenceIds, "nextActions");
+		validateJobAppeal(coaching.jobAppeal(), allEvidenceIds);
+		for (AiAnalysisResponse.PortfolioStatement statement : coaching.portfolioStatements()) {
+			validatePortfolioStatement(statement, allEvidenceIds, allClaimIds);
+		}
+		for (AiAnalysisResponse.InterviewQuestion question : coaching.interviewQuestions()) {
+			validateInterviewQuestion(question, allEvidenceIds, allClaimIds);
+		}
+	}
+
+	private void validateRecommendationItems(
+			List<AiAnalysisResponse.CoachingItem> items,
+			Set<String> allEvidenceIds,
+			String field
+	) {
+		for (AiAnalysisResponse.CoachingItem item : items) {
+			if (item == null || isBlank(item.text())) {
+				throw invalid(field + " 항목이 비어 있습니다.");
+			}
+			if (item.evidenceRefs().isEmpty()) {
+				throw invalid(field + "는 Evidence를 최소 하나 인용해야 합니다.");
+			}
+			validateEvidenceRefs(item.evidenceRefs(), allEvidenceIds);
+		}
+	}
+
+	private void validateJobAppeal(AiAnalysisResponse.JobAppeal jobAppeal, Set<String> allEvidenceIds) {
+		if (jobAppeal == null || isBlank(jobAppeal.text())) {
+			throw invalid("jobAppeal이 없습니다.");
+		}
+		if (jobAppeal.evidenceRefs().isEmpty()) {
+			throw invalid("jobAppeal은 Evidence를 최소 하나 인용해야 합니다.");
+		}
+		validateEvidenceRefs(jobAppeal.evidenceRefs(), allEvidenceIds);
+	}
+
+	private void validatePortfolioStatement(
+			AiAnalysisResponse.PortfolioStatement statement,
+			Set<String> allEvidenceIds,
+			Set<String> allClaimIds
+	) {
+		if (statement == null || isBlank(statement.text())) {
+			throw invalid("portfolioStatements 항목이 비어 있습니다.");
+		}
+		if (statement.evidenceRefs().isEmpty() && statement.claimRefs().isEmpty()) {
+			throw invalid("portfolioStatements는 Evidence 또는 UserClaim을 최소 하나 인용해야 합니다.");
+		}
+		validateEvidenceRefs(statement.evidenceRefs(), allEvidenceIds);
+		validateClaimRefs(statement.claimRefs(), allClaimIds);
+	}
+
+	private void validateInterviewQuestion(
+			AiAnalysisResponse.InterviewQuestion question,
+			Set<String> allEvidenceIds,
+			Set<String> allClaimIds
+	) {
+		if (question == null
+				|| isBlank(question.question())
+				|| isBlank(question.intent())
+				|| isBlank(question.answerGuide())) {
+			throw invalid("interviewQuestions 항목이 비어 있습니다.");
+		}
+		if (question.evidenceRefs().isEmpty() && question.claimRefs().isEmpty()) {
+			throw invalid("interviewQuestions는 Evidence 또는 UserClaim을 최소 하나 인용해야 합니다.");
+		}
+		validateEvidenceRefs(question.evidenceRefs(), allEvidenceIds);
+		validateClaimRefs(question.claimRefs(), allClaimIds);
+	}
+
+	private void validateEvidenceRefs(List<String> evidenceRefs, Set<String> allEvidenceIds) {
+		for (String evidenceId : evidenceRefs) {
+			if (!EVIDENCE_ID.matcher(evidenceId).matches() || !allEvidenceIds.contains(evidenceId)) {
+				throw invalid("요청에 없는 Evidence ID를 인용했습니다: " + evidenceId);
 			}
 		}
 	}
 
-	private void validateItems(
-			List<AiAnalysisResponse.CoachingItem> items,
-			Set<String> allEvidenceIds
-	) {
-		for (AiAnalysisResponse.CoachingItem item : items) {
-			if (item == null || isBlank(item.text())) {
-				throw invalid("coaching 항목이 비어 있습니다.");
-			}
-			for (String evidenceId : item.evidenceRefs()) {
-				if (!allEvidenceIds.contains(evidenceId)) {
-					throw invalid("요청에 없는 Evidence ID를 인용했습니다: " + evidenceId);
-				}
+	private void validateClaimRefs(List<String> claimRefs, Set<String> allClaimIds) {
+		for (String claimId : claimRefs) {
+			if (!CLAIM_ID.matcher(claimId).matches() || !allClaimIds.contains(claimId)) {
+				throw invalid("요청에 없는 UserClaim ID를 인용했습니다: " + claimId);
 			}
 		}
 	}

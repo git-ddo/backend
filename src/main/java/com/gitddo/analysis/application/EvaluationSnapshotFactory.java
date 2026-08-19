@@ -19,6 +19,7 @@ public class EvaluationSnapshotFactory {
 				portfolio.getEvaluationPurpose(),
 				portfolio.getTargetLevel(),
 				portfolio.getEvaluationAreas(),
+				portfolio.getOwner().getLogin(),
 				portfolio.getRepositories().stream()
 						.map(this::repositorySnapshot)
 						.toList()

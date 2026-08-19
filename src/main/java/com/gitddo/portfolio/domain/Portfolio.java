@@ -254,6 +254,10 @@ public class Portfolio {
 		return id;
 	}
 
+	public GithubUser getOwner() {
+		return owner;
+	}
+
 	public String getTitle() {
 		return title;
 	}

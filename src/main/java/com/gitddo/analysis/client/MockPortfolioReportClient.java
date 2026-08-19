@@ -32,33 +32,54 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 		List<AiAnalysisResponse.CoachingItem> gaps = new ArrayList<>();
 		for (AiAnalysisRequest.Repository repository : request.repositories()) {
 			List<AiAnalysisResponse.Finding> findings = new ArrayList<>();
-			for (AiAnalysisRequest.Evidence evidence : repository.evidence()) {
-				FindingCategory category = category(evidence.factKey());
-				if (category == null || !usedLevels.contains(AnalysisDepth.P0)) {
+			addFindings(
+					findings,
+					repository.evidence(),
+					usedLevels,
+					findingSequence,
+					5,
+					AnalysisDepth.P0
+			);
+			findingSequence += findings.size();
+			int beforeP1 = findings.size();
+			addFindings(
+					findings,
+					repository.evidence(),
+					usedLevels,
+					findingSequence,
+					5,
+					AnalysisDepth.P1
+			);
+			findingSequence += findings.size() - beforeP1;
+			if (usedLevels.contains(AnalysisDepth.P1) && !repository.userClaims().isEmpty()) {
+				AiAnalysisRequest.UserClaim claim = repository.userClaims().getFirst();
+				String activityId = repository.evidence().stream()
+						.filter(item -> item.analysisDepth() == AnalysisDepth.P1)
+						.map(AiAnalysisRequest.Evidence::evidenceId)
+						.findFirst()
+						.orElse(null);
+				findings.add(new AiAnalysisResponse.Finding(
+						"find_%03d".formatted(findingSequence++),
+						FindingCategory.CONTRIBUTION,
+						FindingSeverity.INFO,
+						"사용자 기여 주장과 활동 근거를 대조했습니다.",
+						"UserClaim을 활동 Evidence와 함께 해석했으며, 코드 품질은 단정하지 않았습니다.",
+						activityId == null ? List.of() : List.of(activityId),
+						List.of(claim.claimId())
+				));
+			}
+			for (AiAnalysisResponse.Finding finding : findings) {
+				if (finding.evidenceRefs().isEmpty()) {
 					continue;
 				}
-				String findingId = "find_%03d".formatted(findingSequence++);
-				boolean present = evidence.value() != null && !evidence.value().isBlank();
-				findings.add(new AiAnalysisResponse.Finding(
-						findingId,
-						category,
-						present ? FindingSeverity.POSITIVE : FindingSeverity.GAP,
-						title(category, evidence.factKey(), present),
-						detail(category, evidence, present),
-						List.of(evidence.evidenceId()),
-						List.of()
-				));
 				AiAnalysisResponse.CoachingItem item = new AiAnalysisResponse.CoachingItem(
-						coachingText(category, evidence.factKey(), present),
-						List.of(evidence.evidenceId())
+						finding.title(),
+						finding.evidenceRefs()
 				);
-				if (present) {
-					strengths.add(item);
-				} else {
+				if (finding.severity() == FindingSeverity.GAP) {
 					gaps.add(item);
-				}
-				if (findings.size() >= 6) {
-					break;
+				} else {
+					strengths.add(item);
 				}
 			}
 			repositories.add(new AiAnalysisResponse.RepositoryReport(
@@ -69,12 +90,7 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 					findings
 			));
 		}
-		if (gaps.isEmpty() && usedLevels.equals(List.of(AnalysisDepth.P0))) {
-			gaps.add(new AiAnalysisResponse.CoachingItem(
-					"활동 근거와 선별 코드가 없어 기여도와 코드 품질은 판단하지 않았습니다.",
-					List.of()
-			));
-		}
+		List<String> citedEvidence = firstEvidenceIds(request);
 		return new AiAnalysisResponse(
 				AiAnalysisResponse.SCHEMA_VERSION,
 				request.analysisId(),
@@ -86,14 +102,44 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 				new AiAnalysisResponse.Coaching(
 						strengths,
 						gaps,
-						List.of(new AiAnalysisResponse.CoachingItem(
-								"다음 평가에서는 커밋·PR 근거(P1)를 추가해 기여 주장을 확인할 수 있습니다.",
-								List.of()
-						)),
-						interviewQuestions(request)
+						nextActions(request, citedEvidence),
+						jobAppeal(request, citedEvidence),
+						portfolioStatements(request, citedEvidence),
+						interviewQuestions(request, usedLevels, citedEvidence)
 				),
 				limitations
 		);
+	}
+
+	private void addFindings(
+			List<AiAnalysisResponse.Finding> findings,
+			List<AiAnalysisRequest.Evidence> evidence,
+			List<AnalysisDepth> usedLevels,
+			int findingSequence,
+			int limit,
+			AnalysisDepth depth
+	) {
+		int added = 0;
+		for (AiAnalysisRequest.Evidence item : evidence) {
+			if (item.analysisDepth() != depth || added >= limit) {
+				continue;
+			}
+			FindingCategory category = category(item.factKey());
+			if (category == null || !usedLevels.contains(requiredDepth(category))) {
+				continue;
+			}
+			boolean present = item.value() != null && !item.value().isBlank();
+			findings.add(new AiAnalysisResponse.Finding(
+					"find_%03d".formatted(findingSequence + added),
+					category,
+					present ? FindingSeverity.POSITIVE : FindingSeverity.GAP,
+					title(category, item.factKey(), present),
+					detail(category, item, present),
+					List.of(item.evidenceId()),
+					List.of()
+			));
+			added++;
+		}
 	}
 
 	private Set<AnalysisDepth> completedLevels(AiAnalysisRequest request) {
@@ -131,6 +177,14 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 		};
 	}
 
+	private AnalysisDepth requiredDepth(FindingCategory category) {
+		return switch (category) {
+			case STRUCTURE, DOCUMENTATION, STACK -> AnalysisDepth.P0;
+			case ACTIVITY, CONTRIBUTION -> AnalysisDepth.P1;
+			case CODE_QUALITY -> AnalysisDepth.P2;
+		};
+	}
+
 	private List<AiAnalysisResponse.Limitation> limitations(
 			AnalysisDepth requested,
 			List<AnalysisDepth> used
@@ -148,7 +202,7 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 					"커밋·PR 활동 근거가 없어 기여 주장을 확인하지 않았습니다."
 			));
 		}
-		if (rank(requested) >= rank(AnalysisDepth.P2) && !used.contains(AnalysisDepth.P2)) {
+		if (used.contains(AnalysisDepth.P1) && !used.contains(AnalysisDepth.P2)) {
 			limitations.add(new AiAnalysisResponse.Limitation(
 					LimitationCode.MISSING_CODE_EVIDENCE,
 					"선별 코드 근거가 없어 코드 품질을 판단하지 않았습니다."
@@ -166,6 +220,7 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 			case "BUILD_MANIFEST", "LANGUAGE_BREAKDOWN",
 					"CI_CONFIGURATION", "CONTAINER_CONFIGURATION" -> FindingCategory.STACK;
 			case "PROJECT_STRUCTURE", "FILE_TREE_SUMMARY", "REPOSITORY_METADATA" -> FindingCategory.STRUCTURE;
+			case "COMMIT_SUMMARY", "PULL_REQUEST", "CHANGED_FILES", "ACTIVITY_SUMMARY" -> FindingCategory.ACTIVITY;
 			default -> null;
 		};
 	}
@@ -175,7 +230,8 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 			case DOCUMENTATION -> "문서";
 			case STACK -> "스택";
 			case STRUCTURE -> "구조";
-			default -> factKey;
+			case ACTIVITY, CONTRIBUTION -> "활동";
+			case CODE_QUALITY -> "코드";
 		};
 		return present ? label + " 근거가 있습니다." : label + " 근거가 비어 있습니다.";
 	}
@@ -195,11 +251,61 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 		return category.name().toLowerCase(Locale.ROOT) + " 근거: " + preview;
 	}
 
-	private String coachingText(FindingCategory category, String factKey, boolean present) {
-		if (present) {
-			return factKey + "를 바탕으로 " + category.name() + "을 확인할 수 있습니다.";
+	private List<AiAnalysisResponse.CoachingItem> nextActions(
+			AiAnalysisRequest request,
+			List<String> citedEvidence
+	) {
+		if (citedEvidence.isEmpty()) {
+			return List.of();
 		}
-		return factKey + " 근거가 부족합니다.";
+		String fact = request.repositories().getFirst().evidence().getFirst().factKey();
+		return List.of(new AiAnalysisResponse.CoachingItem(
+				fact + " 근거를 포트폴리오 설명에 더 구체적으로 연결하세요.",
+				List.of(citedEvidence.getFirst())
+		));
+	}
+
+	private AiAnalysisResponse.JobAppeal jobAppeal(AiAnalysisRequest request, List<String> citedEvidence) {
+		if (citedEvidence.isEmpty()) {
+			throw new IllegalStateException("jobAppeal에 사용할 Evidence가 없습니다.");
+		}
+		return new AiAnalysisResponse.JobAppeal(
+				request.targetJob() + " " + request.targetCareerLevel()
+						+ " 지원자에게 전달된 Evidence만으로 구조와 문서를 어필할 수 있습니다.",
+				List.of(citedEvidence.getFirst())
+		);
+	}
+
+	private List<AiAnalysisResponse.PortfolioStatement> portfolioStatements(
+			AiAnalysisRequest request,
+			List<String> citedEvidence
+	) {
+		List<AiAnalysisResponse.PortfolioStatement> statements = new ArrayList<>();
+		for (AiAnalysisRequest.Repository repository : request.repositories()) {
+			for (AiAnalysisRequest.UserClaim claim : repository.userClaims()) {
+				statements.add(new AiAnalysisResponse.PortfolioStatement(
+						claim.statement(),
+						citedEvidence.isEmpty() ? List.of() : List.of(citedEvidence.getFirst()),
+						List.of(claim.claimId())
+				));
+			}
+		}
+		if (statements.isEmpty() && !citedEvidence.isEmpty()) {
+			statements.add(new AiAnalysisResponse.PortfolioStatement(
+					"저장소 Evidence를 바탕으로 역할을 문장으로 정리하세요.",
+					List.of(citedEvidence.getFirst()),
+					List.of()
+			));
+		}
+		return statements;
+	}
+
+	private List<String> firstEvidenceIds(AiAnalysisRequest request) {
+		return request.repositories().stream()
+				.flatMap(repository -> repository.evidence().stream())
+				.map(AiAnalysisRequest.Evidence::evidenceId)
+				.limit(3)
+				.toList();
 	}
 
 	private String summary(AiAnalysisRequest request, List<AnalysisDepth> usedLevels) {
@@ -214,14 +320,44 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 				);
 	}
 
-	private List<String> interviewQuestions(AiAnalysisRequest request) {
+	private List<AiAnalysisResponse.InterviewQuestion> interviewQuestions(
+			AiAnalysisRequest request,
+			List<AnalysisDepth> usedLevels,
+			List<String> citedEvidence
+	) {
+		if (citedEvidence.isEmpty()) {
+			return List.of();
+		}
 		String repositoryName = request.repositories().stream()
 				.map(AiAnalysisRequest.Repository::repositoryFullName)
 				.findFirst()
 				.orElse("선택한 저장소");
-		return List.of(
+		List<String> claimRefs = request.repositories().stream()
+				.flatMap(repository -> repository.userClaims().stream())
+				.map(AiAnalysisRequest.UserClaim::claimId)
+				.limit(1)
+				.toList();
+		if (usedLevels.contains(AnalysisDepth.P1)) {
+			String activityId = request.repositories().stream()
+					.flatMap(repository -> repository.evidence().stream())
+					.filter(item -> item.analysisDepth() == AnalysisDepth.P1)
+					.map(AiAnalysisRequest.Evidence::evidenceId)
+					.findFirst()
+					.orElse(citedEvidence.getFirst());
+			return List.of(new AiAnalysisResponse.InterviewQuestion(
+					"가장 임팩트가 큰 커밋이나 PR에서 본인이 맡은 역할을 근거와 함께 설명하시겠어요?",
+					"활동 Evidence와 UserClaim이 같은 기여를 가리키는지 확인합니다.",
+					"커밋/PR Evidence를 먼저 말한 뒤, 본인 주장을 그 근거에 연결하면 됩니다.",
+					List.of(activityId),
+					claimRefs
+			));
+		}
+		return List.of(new AiAnalysisResponse.InterviewQuestion(
 				repositoryName + "의 디렉터리 구조와 빌드 도구를 어떻게 설명하시겠어요?",
-				"README에 적힌 실행 방법과 실제 개발 환경이 같은지 어떻게 확인하시겠어요?"
-		);
+				"P0 Evidence만으로 구조와 스택을 설명하는지 확인합니다.",
+				"파일 트리와 빌드 매니페스트 Evidence를 기준으로 설명하면 됩니다.",
+				List.of(citedEvidence.getFirst()),
+				List.of()
+		));
 	}
 }

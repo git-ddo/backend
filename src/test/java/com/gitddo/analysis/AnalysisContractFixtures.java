@@ -55,6 +55,41 @@ public final class AnalysisContractFixtures {
 		);
 	}
 
+	public static AiAnalysisRequest p1Request() {
+		return new AiAnalysisRequest(
+				AiAnalysisRequest.SCHEMA_VERSION,
+				ANALYSIS_ID,
+				TargetJob.BACKEND,
+				TargetCareerLevel.ENTRY,
+				AnalysisPurpose.PORTFOLIO_ANALYSIS,
+				AnalysisDepth.P1,
+				"p0-p1-collector-1.0",
+				List.of(new AiAnalysisRequest.Repository(
+						"123",
+						"git-ddo/backend",
+						"main",
+						SnapshotHashAlgorithm.SHA1,
+						SNAPSHOT_SHA,
+						List.of(AnalysisDepth.P0, AnalysisDepth.P1),
+						List.of(),
+						List.of(new AiAnalysisRequest.UserClaim(
+								"claim_001",
+								"API를 구현했습니다.",
+								"LEAD",
+								null,
+								null,
+								List.of("ev_003")
+						)),
+						List.of(
+								evidence("ev_001", "README", "README.md", "# Backend"),
+								evidence("ev_002", "BUILD_MANIFEST", "build.gradle", "plugins { id 'java' }"),
+								activity("ev_003", "COMMIT_SUMMARY", "abc123", null, "sha=abc123"),
+								activity("ev_004", "PULL_REQUEST", "def456", 12, "number=12")
+						)
+				))
+		);
+	}
+
 	static AiAnalysisRequest.Evidence evidence(
 			String evidenceId,
 			String factKey,
@@ -77,6 +112,34 @@ public final class AnalysisContractFixtures {
 				null,
 				SNAPSHOT_SHA,
 				null,
+				List.of(),
+				null
+		);
+	}
+
+	static AiAnalysisRequest.Evidence activity(
+			String evidenceId,
+			String factKey,
+			String commitSha,
+			Integer pullRequestNumber,
+			String value
+	) {
+		return new AiAnalysisRequest.Evidence(
+				evidenceId,
+				"GITHUB_ACTIVITY",
+				AnalysisDepth.P1,
+				"123",
+				"git-ddo/backend",
+				SnapshotHashAlgorithm.SHA1,
+				SNAPSHOT_SHA,
+				factKey,
+				EvidenceValueType.STRING,
+				value,
+				null,
+				null,
+				null,
+				commitSha,
+				pullRequestNumber,
 				List.of(),
 				null
 		);
@@ -108,11 +171,29 @@ public final class AnalysisContractFixtures {
 				new AiAnalysisResponse.Coaching(
 						List.of(new AiAnalysisResponse.CoachingItem("README를 확인할 수 있습니다.", List.of("ev_001"))),
 						List.of(new AiAnalysisResponse.CoachingItem(
-								"코드 품질은 판단하지 않았습니다.",
-								List.of()
+								"빌드 설정을 포트폴리오 설명과 연결하세요.",
+								List.of("ev_002")
 						)),
-						List.of(new AiAnalysisResponse.CoachingItem("P1 근거를 추가하세요.", List.of())),
-						List.of("디렉터리 구조를 어떻게 설명하시겠어요?")
+						List.of(new AiAnalysisResponse.CoachingItem(
+								"README에 실행 방법을 구체적으로 적으세요.",
+								List.of("ev_001")
+						)),
+						new AiAnalysisResponse.JobAppeal(
+								"문서와 스택 Evidence로 백엔드 학습 경험을 어필할 수 있습니다.",
+								List.of("ev_001")
+						),
+						List.of(new AiAnalysisResponse.PortfolioStatement(
+								"API를 구현했습니다.",
+								List.of("ev_001"),
+								List.of("claim_001")
+						)),
+						List.of(new AiAnalysisResponse.InterviewQuestion(
+								"디렉터리 구조를 어떻게 설명하시겠어요?",
+								"P0 구조 근거를 말로 재구성하는지 확인합니다.",
+								"README와 빌드 매니페스트를 기준으로 설명하면 됩니다.",
+								List.of("ev_001"),
+								List.of()
+						))
 				),
 				List.of(new AiAnalysisResponse.Limitation(
 						LimitationCode.P0_ONLY,

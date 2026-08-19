@@ -207,7 +207,9 @@ GET    /api/v1/portfolios/{portfolioId}/evaluations/{analysisId}
 
 평가 요청은 `202 Accepted`와 외부 식별자인 `analysisId`를 반환합니다. 백그라운드 작업이
 저장소별 commit SHA를 고정하고 언어, 파일 트리, README, 빌드·CI·컨테이너·API 문서를
-선별해 P0 Evidence로 저장한 뒤, AI 서버에 보낼 요청 JSON(`aiRequest`)으로 조립합니다.
+선별해 P0 Evidence로 저장한 뒤, 로그인 사용자의 커밋·PR을 P1 Evidence로 이어서 수집합니다.
+P1은 최근 커밋을 그대로 쓰지 않고, lockfile 등 노이즈를 제외한 소스 변경량과
+domain/service/controller 경로, feat/refactor/arch 메시지에 가중치를 둬 핵심 활동만 고릅니다.
 이어서 `ANALYZING`으로 바꾸고 `POST /internal/v1/portfolio-reports`로 리포트를 받습니다.
 응답의 `analysisId`, Evidence ID, Snapshot SHA를 검증한 뒤에만 DB에 저장합니다.
 상태 조회에서 `SUCCEEDED`가 반환되면 `report`로 코칭 리포트를 확인할 수 있습니다.

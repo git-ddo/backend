@@ -36,6 +36,8 @@ class EvaluationJobLauncherTests {
 	@Mock
 	private P0EvidenceCollector p0EvidenceCollector;
 	@Mock
+	private P1EvidenceCollector p1EvidenceCollector;
+	@Mock
 	private AiAnalysisRequestAssembler aiAnalysisRequestAssembler;
 	@Mock
 	private PortfolioReportClient portfolioReportClient;
@@ -55,6 +57,7 @@ class EvaluationJobLauncherTests {
 
 		when(evaluationService.startCollection(analysisId)).thenReturn(input);
 		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
+		when(p1EvidenceCollector.collect("token", input, evidence)).thenReturn(evidence);
 		when(aiAnalysisRequestAssembler.assemble(analysisId, input, evidence)).thenReturn(request);
 		when(evaluationService.startAnalysis(analysisId)).thenReturn(request);
 		when(portfolioReportClient.requestReport(request)).thenReturn(report);
@@ -77,6 +80,7 @@ class EvaluationJobLauncherTests {
 
 		when(evaluationService.startCollection(analysisId)).thenReturn(input);
 		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
+		when(p1EvidenceCollector.collect("token", input, evidence)).thenReturn(evidence);
 		when(aiAnalysisRequestAssembler.assemble(analysisId, input, evidence)).thenReturn(request);
 		when(evaluationService.startAnalysis(analysisId)).thenReturn(request);
 		when(portfolioReportClient.requestReport(request))
@@ -98,6 +102,7 @@ class EvaluationJobLauncherTests {
 
 		when(evaluationService.startCollection(analysisId)).thenReturn(input);
 		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
+		when(p1EvidenceCollector.collect("token", input, evidence)).thenReturn(evidence);
 		when(aiAnalysisRequestAssembler.assemble(analysisId, input, evidence)).thenReturn(request);
 		when(evaluationService.startAnalysis(analysisId)).thenReturn(request);
 		when(portfolioReportClient.requestReport(request)).thenReturn(report);
@@ -119,6 +124,7 @@ class EvaluationJobLauncherTests {
 				EvaluationPurpose.PORTFOLIO_REVIEW,
 				TargetLevel.ENTRY,
 				Set.of(EvaluationArea.BACKEND),
+				"git-ddo-user",
 				List.of()
 		);
 	}

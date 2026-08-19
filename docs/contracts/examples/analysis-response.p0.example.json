@@ -33,18 +33,35 @@
     ],
     "gaps": [
       {
-        "text": "활동 근거와 선별 코드가 없어 기여도와 코드 품질은 판단하지 않았습니다.",
-        "evidenceRefs": []
+        "text": "실행 방법이 README에 짧게만 남아 있습니다.",
+        "evidenceRefs": ["ev_001"]
       }
     ],
     "nextActions": [
       {
-        "text": "다음 평가에서는 커밋·PR 근거(P1)를 추가해 기여 주장을 확인할 수 있습니다.",
-        "evidenceRefs": []
+        "text": "README에 실행 방법을 구체적으로 적으세요.",
+        "evidenceRefs": ["ev_001"]
+      }
+    ],
+    "jobAppeal": {
+      "text": "문서와 스택 Evidence로 백엔드 학습 경험을 어필할 수 있습니다.",
+      "evidenceRefs": ["ev_001"]
+    },
+    "portfolioStatements": [
+      {
+        "text": "API를 구현했습니다.",
+        "evidenceRefs": ["ev_001"],
+        "claimRefs": ["claim_001"]
       }
     ],
     "interviewQuestions": [
-      "git-ddo/backend의 디렉터리 구조와 빌드 도구를 어떻게 설명하시겠어요?"
+      {
+        "question": "git-ddo/backend의 디렉터리 구조와 빌드 도구를 어떻게 설명하시겠어요?",
+        "intent": "P0 Evidence만으로 구조와 스택을 설명하는지 확인합니다.",
+        "answerGuide": "파일 트리와 빌드 매니페스트 Evidence를 기준으로 설명하면 됩니다.",
+        "evidenceRefs": ["ev_001"],
+        "claimRefs": []
+      }
     ]
   },
   "limitations": [

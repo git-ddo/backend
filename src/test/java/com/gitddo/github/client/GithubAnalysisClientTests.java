@@ -125,6 +125,60 @@ class GithubAnalysisClientTests {
 	}
 
 	@Test
+	void fetchesAuthorCommitsAndPullRequests() {
+		expectJson(
+				"https://api.github.com/repos/git-ddo/backend/commits?author=git-ddo-user&sha=commit-sha&per_page=21",
+				"""
+						[
+						  {
+						    "sha": "abc123",
+						    "commit": {
+						      "message": "Add filter",
+						      "author": {
+						        "name": "Kim",
+						        "date": "2026-08-01T00:00:00Z"
+						      }
+						    },
+						    "author": { "login": "git-ddo-user" }
+						  }
+						]
+						"""
+		);
+		expectJson(
+				"https://api.github.com/repos/git-ddo/backend/pulls?state=all&sort=updated&direction=desc&per_page=30",
+				"""
+						[
+						  {
+						    "number": 12,
+						    "title": "Add auth filter",
+						    "state": "closed",
+						    "user": { "login": "git-ddo-user" },
+						    "head": { "sha": "def456" },
+						    "created_at": "2026-08-01T00:00:00Z",
+						    "merged_at": "2026-08-02T00:00:00Z"
+						  }
+						]
+						"""
+		);
+
+		assertThat(client.fetchCommits(
+				"test-token",
+				"git-ddo",
+				"backend",
+				"git-ddo-user",
+				"commit-sha",
+				21
+		)).singleElement().satisfies(commit -> assertThat(commit.sha()).isEqualTo("abc123"));
+		assertThat(client.fetchPullRequests("test-token", "git-ddo", "backend", 30))
+				.singleElement()
+				.satisfies(pullRequest -> {
+					assertThat(pullRequest.number()).isEqualTo(12);
+					assertThat(pullRequest.authoredBy("git-ddo-user")).isTrue();
+				});
+		server.verify();
+	}
+
+	@Test
 	void preservesGithubStatusAndRateLimitOnFailure() {
 		server.expect(requestTo("https://api.github.com/repos/git-ddo/backend/languages"))
 				.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))

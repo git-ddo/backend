@@ -100,7 +100,14 @@
     "coaching": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["strengths", "gaps", "nextActions", "interviewQuestions"],
+      "required": [
+        "strengths",
+        "gaps",
+        "nextActions",
+        "jobAppeal",
+        "portfolioStatements",
+        "interviewQuestions"
+      ],
       "properties": {
         "strengths": {
           "type": "array",
@@ -114,9 +121,14 @@
           "type": "array",
           "items": { "$ref": "#/$defs/coachingItem" }
         },
+        "jobAppeal": { "$ref": "#/$defs/jobAppeal" },
+        "portfolioStatements": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/portfolioStatement" }
+        },
         "interviewQuestions": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 }
+          "items": { "$ref": "#/$defs/interviewQuestion" }
         }
       }
     },
@@ -128,9 +140,65 @@
         "text": { "type": "string", "minLength": 1 },
         "evidenceRefs": {
           "type": "array",
+          "minItems": 1,
           "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
         }
       }
+    },
+    "jobAppeal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "evidenceRefs"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1 },
+        "evidenceRefs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
+        }
+      }
+    },
+    "portfolioStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "evidenceRefs", "claimRefs"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1 },
+        "evidenceRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
+        },
+        "claimRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^claim_[0-9]{3,}$" }
+        }
+      },
+      "anyOf": [
+        { "properties": { "evidenceRefs": { "minItems": 1 } }, "required": ["evidenceRefs"] },
+        { "properties": { "claimRefs": { "minItems": 1 } }, "required": ["claimRefs"] }
+      ]
+    },
+    "interviewQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "intent", "answerGuide", "evidenceRefs", "claimRefs"],
+      "properties": {
+        "question": { "type": "string", "minLength": 1 },
+        "intent": { "type": "string", "minLength": 1 },
+        "answerGuide": { "type": "string", "minLength": 1 },
+        "evidenceRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
+        },
+        "claimRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^claim_[0-9]{3,}$" }
+        }
+      },
+      "anyOf": [
+        { "properties": { "evidenceRefs": { "minItems": 1 } }, "required": ["evidenceRefs"] },
+        { "properties": { "claimRefs": { "minItems": 1 } }, "required": ["claimRefs"] }
+      ]
     },
     "limitation": {
       "type": "object",
