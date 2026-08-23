@@ -210,7 +210,9 @@ GET    /api/v1/portfolios/{portfolioId}/evaluations/{analysisId}
 선별해 P0 Evidence로 저장한 뒤, 로그인 사용자의 커밋·PR을 P1 Evidence로 이어서 수집합니다.
 P1은 최근 커밋을 그대로 쓰지 않고, lockfile 등 노이즈를 제외한 소스 변경량과
 domain/service/controller 경로, feat/refactor/arch 메시지에 가중치를 둬 핵심 활동만 고릅니다.
-이어서 `ANALYZING`으로 바꾸고 `POST /internal/v1/portfolio-reports`로 리포트를 받습니다.
+P2는 그 커밋/PR이 가리키는 소스 파일 전체가 아니라, 클래스·메서드 주변의 짧은 코드 조각만
+`CODE_EVIDENCE`로 붙입니다. 이어서 `ANALYZING`으로 바꾸고
+`POST /internal/v1/portfolio-reports`로 리포트를 받습니다.
 응답의 `analysisId`, Evidence ID, Snapshot SHA를 검증한 뒤에만 DB에 저장합니다.
 상태 조회에서 `SUCCEEDED`가 반환되면 `report`로 코칭 리포트를 확인할 수 있습니다.
 

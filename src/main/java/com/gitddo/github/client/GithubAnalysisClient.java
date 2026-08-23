@@ -88,6 +88,30 @@ public class GithubAnalysisClient {
 		);
 	}
 
+	public GithubFileContentPayload fetchFileAtRef(
+			String accessToken,
+			String owner,
+			String repository,
+			String path,
+			String ref
+	) {
+		return get(
+				accessToken,
+				uriBuilder -> {
+					uriBuilder.pathSegment("repos", owner, repository, "contents");
+					for (String segment : path.split("/")) {
+						if (!segment.isBlank()) {
+							uriBuilder.pathSegment(segment);
+						}
+					}
+					return uriBuilder.queryParam("ref", ref).build();
+				},
+				new ParameterizedTypeReference<>() {
+				},
+				"GitHub 파일 내용 조회에 실패했습니다."
+		);
+	}
+
 	public GithubBlobPayload fetchBlob(
 			String accessToken,
 			String owner,

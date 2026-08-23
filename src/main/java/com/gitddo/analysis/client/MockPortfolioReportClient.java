@@ -51,6 +51,16 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 					AnalysisDepth.P1
 			);
 			findingSequence += findings.size() - beforeP1;
+			int beforeP2 = findings.size();
+			addFindings(
+					findings,
+					repository.evidence(),
+					usedLevels,
+					findingSequence,
+					5,
+					AnalysisDepth.P2
+			);
+			findingSequence += findings.size() - beforeP2;
 			if (usedLevels.contains(AnalysisDepth.P1) && !repository.userClaims().isEmpty()) {
 				AiAnalysisRequest.UserClaim claim = repository.userClaims().getFirst();
 				String activityId = repository.evidence().stream()
@@ -202,7 +212,8 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 					"커밋·PR 활동 근거가 없어 기여 주장을 확인하지 않았습니다."
 			));
 		}
-		if (used.contains(AnalysisDepth.P1) && !used.contains(AnalysisDepth.P2)) {
+		if (used.contains(AnalysisDepth.P1) && !used.contains(AnalysisDepth.P2)
+				&& requested != AnalysisDepth.P0) {
 			limitations.add(new AiAnalysisResponse.Limitation(
 					LimitationCode.MISSING_CODE_EVIDENCE,
 					"선별 코드 근거가 없어 코드 품질을 판단하지 않았습니다."
@@ -221,6 +232,7 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 					"CI_CONFIGURATION", "CONTAINER_CONFIGURATION" -> FindingCategory.STACK;
 			case "PROJECT_STRUCTURE", "FILE_TREE_SUMMARY", "REPOSITORY_METADATA" -> FindingCategory.STRUCTURE;
 			case "COMMIT_SUMMARY", "PULL_REQUEST", "CHANGED_FILES", "ACTIVITY_SUMMARY" -> FindingCategory.ACTIVITY;
+			case "CODE_SNIPPET" -> FindingCategory.CODE_QUALITY;
 			default -> null;
 		};
 	}
@@ -337,6 +349,21 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 				.map(AiAnalysisRequest.UserClaim::claimId)
 				.limit(1)
 				.toList();
+		if (usedLevels.contains(AnalysisDepth.P2)) {
+			String codeId = request.repositories().stream()
+					.flatMap(repository -> repository.evidence().stream())
+					.filter(item -> item.analysisDepth() == AnalysisDepth.P2)
+					.map(AiAnalysisRequest.Evidence::evidenceId)
+					.findFirst()
+					.orElse(citedEvidence.getFirst());
+			return List.of(new AiAnalysisResponse.InterviewQuestion(
+					"선택한 코드 조각에서 본인이 설계하거나 구현한 부분을 근거와 함께 설명하시겠어요?",
+					"P2 코드 Evidence를 보고 구현을 설명하는지 확인합니다.",
+					"파일 경로와 라인 범위를 말한 뒤, 그 조각이 하는 역할을 설명하면 됩니다.",
+					List.of(codeId),
+					claimRefs
+			));
+		}
 		if (usedLevels.contains(AnalysisDepth.P1)) {
 			String activityId = request.repositories().stream()
 					.flatMap(repository -> repository.evidence().stream())

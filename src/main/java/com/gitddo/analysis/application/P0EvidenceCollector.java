@@ -361,6 +361,8 @@ public class P0EvidenceCollector {
 					candidate.path(),
 					null,
 					null,
+					null,
+					null,
 					candidate.content(),
 					sha256(candidate.content()),
 					candidate.truncated(),

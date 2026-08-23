@@ -90,6 +90,42 @@ public final class AnalysisContractFixtures {
 		);
 	}
 
+	public static AiAnalysisRequest p2Request() {
+		return new AiAnalysisRequest(
+				AiAnalysisRequest.SCHEMA_VERSION,
+				ANALYSIS_ID,
+				TargetJob.BACKEND,
+				TargetCareerLevel.ENTRY,
+				AnalysisPurpose.PORTFOLIO_ANALYSIS,
+				AnalysisDepth.P2,
+				"p0-p1-p2-collector-1.0",
+				List.of(new AiAnalysisRequest.Repository(
+						"123",
+						"git-ddo/backend",
+						"main",
+						SnapshotHashAlgorithm.SHA1,
+						SNAPSHOT_SHA,
+						List.of(AnalysisDepth.P0, AnalysisDepth.P1, AnalysisDepth.P2),
+						List.of(),
+						List.of(new AiAnalysisRequest.UserClaim(
+								"claim_001",
+								"API를 구현했습니다.",
+								"LEAD",
+								null,
+								null,
+								List.of("ev_003")
+						)),
+						List.of(
+								evidence("ev_001", "README", "README.md", "# Backend"),
+								evidence("ev_002", "BUILD_MANIFEST", "build.gradle", "plugins { id 'java' }"),
+								activity("ev_003", "COMMIT_SUMMARY", "abc123", null, "sha=abc123"),
+								activity("ev_004", "PULL_REQUEST", "def456", 12, "number=12"),
+								code("ev_005", "src/AuthFilter.java", "abc123", 8, 18, "public class AuthFilter {}")
+						)
+				))
+		);
+	}
+
 	static AiAnalysisRequest.Evidence evidence(
 			String evidenceId,
 			String factKey,
@@ -141,6 +177,35 @@ public final class AnalysisContractFixtures {
 				commitSha,
 				pullRequestNumber,
 				List.of(),
+				null
+		);
+	}
+
+	static AiAnalysisRequest.Evidence code(
+			String evidenceId,
+			String path,
+			String commitSha,
+			int startLine,
+			int endLine,
+			String value
+	) {
+		return new AiAnalysisRequest.Evidence(
+				evidenceId,
+				"CODE_EVIDENCE",
+				AnalysisDepth.P2,
+				"123",
+				"git-ddo/backend",
+				SnapshotHashAlgorithm.SHA1,
+				SNAPSHOT_SHA,
+				"CODE_SNIPPET",
+				EvidenceValueType.STRING,
+				value,
+				path,
+				startLine,
+				endLine,
+				commitSha,
+				null,
+				List.of("ev_003"),
 				null
 		);
 	}

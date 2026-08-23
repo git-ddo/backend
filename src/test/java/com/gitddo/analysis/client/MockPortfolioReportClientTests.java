@@ -68,4 +68,25 @@ class MockPortfolioReportClientTests {
 		assertThatCode(() -> new AiAnalysisResponseValidator().validate(request, report))
 				.doesNotThrowAnyException();
 	}
+
+	@Test
+	void buildsP2ReportWithCodeQualityFindings() {
+		AiAnalysisRequest request = AnalysisContractFixtures.p2Request();
+		AiAnalysisResponse report = new MockPortfolioReportClient().requestReport(request);
+
+		assertThat(report.requestedAnalysisDepth()).isEqualTo(AnalysisDepth.P2);
+		assertThat(report.usedEvidenceLevels())
+				.containsExactly(AnalysisDepth.P0, AnalysisDepth.P1, AnalysisDepth.P2);
+		assertThat(report.limitations())
+				.extracting(AiAnalysisResponse.Limitation::code)
+				.doesNotContain(LimitationCode.MISSING_CODE_EVIDENCE, LimitationCode.P0_ONLY);
+		assertThat(report.repositories()).singleElement().satisfies(repository ->
+				assertThat(repository.findings())
+						.filteredOn(finding -> finding.category() == FindingCategory.CODE_QUALITY)
+						.isNotEmpty()
+						.allMatch(finding -> finding.evidenceRefs().contains("ev_005")));
+		assertThat(report.coaching().interviewQuestions().getFirst().evidenceRefs()).contains("ev_005");
+		assertThatCode(() -> new AiAnalysisResponseValidator().validate(request, report))
+				.doesNotThrowAnyException();
+	}
 }
