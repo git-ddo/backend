@@ -106,6 +106,8 @@ class AiAnalysisRequestAssemblerTests {
 								"README.md",
 								null,
 								null,
+								null,
+								null,
 								"# Backend",
 								"hash-1",
 								false,
@@ -120,6 +122,8 @@ class AiAnalysisRequestAssemblerTests {
 								"commit-sha",
 								null,
 								"abc123",
+								null,
+								null,
 								null,
 								"sha=abc123",
 								"hash-2",
@@ -136,6 +140,8 @@ class AiAnalysisRequestAssemblerTests {
 								null,
 								"def456",
 								12,
+								null,
+								null,
 								"number=12",
 								"hash-3",
 								false,
@@ -164,6 +170,60 @@ class AiAnalysisRequestAssemblerTests {
 					.filteredOn(item -> "PULL_REQUEST".equals(item.factKey()))
 					.singleElement()
 					.satisfies(item -> assertThat(item.pullRequestNumber()).isEqualTo(12));
+		});
+	}
+
+	@Test
+	void mapsCodeSnippetLineRangeAndRaisesDepthToP2() {
+		var input = inputSnapshot();
+		var snapshot = new com.gitddo.analysis.domain.P0EvidenceSnapshot(
+				1,
+				com.gitddo.analysis.domain.P0EvidenceSnapshot.P2_EXTRACTOR_VERSION,
+				Instant.now(),
+				List.of(new com.gitddo.analysis.domain.P0EvidenceSnapshot.RepositorySnapshot(
+						"123",
+						"git-ddo/backend",
+						"commit-sha",
+						"tree-sha",
+						Map.of("Java", 10L),
+						1,
+						false
+				)),
+				List.of(new com.gitddo.analysis.domain.P0EvidenceSnapshot.Evidence(
+						"ev_010",
+						com.gitddo.analysis.domain.EvidenceType.CODE_EVIDENCE,
+						EvidenceKind.CODE_SNIPPET,
+						AnalysisDepth.P2,
+						"123",
+						"commit-sha",
+						"src/AuthFilter.java",
+						"abc123",
+						null,
+						8,
+						18,
+						"public class AuthFilter {}",
+						"hash-10",
+						true,
+						List.of("ev_003")
+				)),
+				List.of()
+		);
+
+		AiAnalysisRequest request = new AiAnalysisRequestAssembler()
+				.assemble(UUID.fromString("11111111-1111-4111-8111-111111111111"), input, snapshot);
+
+		assertThat(request.requestedAnalysisDepth()).isEqualTo(AnalysisDepth.P2);
+		assertThat(request.repositories()).singleElement().satisfies(repository -> {
+			assertThat(repository.completedEvidenceLevels()).contains(AnalysisDepth.P2);
+			assertThat(repository.evidence()).singleElement().satisfies(item -> {
+				assertThat(item.evidenceType()).isEqualTo("CODE_EVIDENCE");
+				assertThat(item.factKey()).isEqualTo("CODE_SNIPPET");
+				assertThat(item.path()).isEqualTo("src/AuthFilter.java");
+				assertThat(item.startLine()).isEqualTo(8);
+				assertThat(item.endLine()).isEqualTo(18);
+				assertThat(item.commitSha()).isEqualTo("abc123");
+				assertThat(item.sourceEvidenceRefs()).containsExactly("ev_003");
+			});
 		});
 	}
 

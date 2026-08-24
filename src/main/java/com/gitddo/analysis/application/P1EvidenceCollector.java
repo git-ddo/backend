@@ -169,11 +169,23 @@ public class P1EvidenceCollector {
 					"커밋 목록은 최근 " + MAX_COMMIT_LIST + "개 창에서 임팩트를 계산했습니다."
 			));
 		}
+		List<GithubCommitListItemPayload> regularCommits = listedCommits.stream()
+				.filter(commit -> !commit.isMerge())
+				.toList();
+		int mergeCount = listedCommits.size() - regularCommits.size();
+		if (mergeCount > 0) {
+			warnings.add(warning(
+					"MERGE_COMMITS_EXCLUDED",
+					repositoryId,
+					null,
+					"merge 커밋 " + mergeCount + "개는 선정과 상세 조회에서 제외했습니다."
+			));
+		}
 		List<ScoredCommit> rankedCommits = scoreCommits(
 				accessToken,
 				repositoryName,
 				repositoryId,
-				listedCommits,
+				regularCommits,
 				warnings
 		);
 		List<ScoredCommit> selectedCommits = selectByImpact(
@@ -335,6 +347,9 @@ public class P1EvidenceCollector {
 		}
 		List<ScoredCommit> scored = new ArrayList<>();
 		for (GithubCommitListItemPayload commit : inspect) {
+			if (commit.isMerge()) {
+				continue;
+			}
 			String commitSha = commit.sha();
 			if (commitSha == null || commitSha.isBlank()) {
 				continue;
@@ -420,6 +435,8 @@ public class P1EvidenceCollector {
 				path,
 				commitSha,
 				pullRequestNumber,
+				null,
+				null,
 				content,
 				sha256(content),
 				truncated,

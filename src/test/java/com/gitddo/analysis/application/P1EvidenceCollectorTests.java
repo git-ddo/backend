@@ -237,6 +237,8 @@ class P1EvidenceCollectorTests {
 						"README.md",
 						null,
 						null,
+						null,
+						null,
 						"# Backend",
 						"hash",
 						false,
@@ -266,6 +268,32 @@ class P1EvidenceCollectorTests {
 		);
 	}
 
+	@Test
+	void excludesMergeCommitsFromSelectionAndDetailLookup() {
+		GithubAnalysisClient client = mock(GithubAnalysisClient.class);
+		when(client.fetchPullRequests("token", "git-ddo", "backend", 30)).thenReturn(List.of());
+		when(client.fetchCommits("token", "git-ddo", "backend", "git-ddo-user", "commit-sha", 100))
+				.thenReturn(List.of(
+						mergeCommit("merge1", "Merge pull request #9 from git-ddo/login"),
+						commit("feat1", "feat: 로그인 구현")
+				));
+		when(client.fetchCommitDetail("token", "git-ddo", "backend", "feat1"))
+				.thenReturn(detail("feat1", "src/AuthService.java", 40, 4));
+
+		P0EvidenceSnapshot snapshot = new P1EvidenceCollector(client, new ActivityImpactPolicy())
+				.collect("token", inputSnapshot(), p0Snapshot());
+
+		assertThat(snapshot.evidence())
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.COMMIT_SUMMARY)
+				.extracting(P0EvidenceSnapshot.Evidence::commitSha)
+				.containsExactly("feat1")
+				.doesNotContain("merge1");
+		assertThat(snapshot.warnings())
+				.extracting(P0EvidenceSnapshot.Warning::code)
+				.contains("MERGE_COMMITS_EXCLUDED");
+		verify(client, never()).fetchCommitDetail("token", "git-ddo", "backend", "merge1");
+	}
+
 	private GithubCommitListItemPayload commit(String sha, String message) {
 		return new GithubCommitListItemPayload(
 				sha,
@@ -276,7 +304,26 @@ class P1EvidenceCollectorTests {
 								Instant.parse("2026-08-01T12:00:00Z")
 						)
 				),
-				new GithubCommitListItemPayload.UserPayload("git-ddo-user")
+				new GithubCommitListItemPayload.UserPayload("git-ddo-user"),
+				List.of(new GithubCommitListItemPayload.ParentPayload("parent"))
+		);
+	}
+
+	private GithubCommitListItemPayload mergeCommit(String sha, String message) {
+		return new GithubCommitListItemPayload(
+				sha,
+				new GithubCommitListItemPayload.CommitPayload(
+						message,
+						new GithubCommitListItemPayload.GitUserPayload(
+								"Kim",
+								Instant.parse("2026-08-01T12:00:00Z")
+						)
+				),
+				new GithubCommitListItemPayload.UserPayload("git-ddo-user"),
+				List.of(
+						new GithubCommitListItemPayload.ParentPayload("left"),
+						new GithubCommitListItemPayload.ParentPayload("right")
+				)
 		);
 	}
 }

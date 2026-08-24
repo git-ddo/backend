@@ -18,6 +18,7 @@ public class EvaluationJobLauncher {
 	private final EvaluationService evaluationService;
 	private final P0EvidenceCollector p0EvidenceCollector;
 	private final P1EvidenceCollector p1EvidenceCollector;
+	private final P2EvidenceCollector p2EvidenceCollector;
 	private final AiAnalysisRequestAssembler aiAnalysisRequestAssembler;
 	private final PortfolioReportClient portfolioReportClient;
 	private final AiAnalysisResponseValidator aiAnalysisResponseValidator;
@@ -26,6 +27,7 @@ public class EvaluationJobLauncher {
 			EvaluationService evaluationService,
 			P0EvidenceCollector p0EvidenceCollector,
 			P1EvidenceCollector p1EvidenceCollector,
+			P2EvidenceCollector p2EvidenceCollector,
 			AiAnalysisRequestAssembler aiAnalysisRequestAssembler,
 			PortfolioReportClient portfolioReportClient,
 			AiAnalysisResponseValidator aiAnalysisResponseValidator
@@ -33,6 +35,7 @@ public class EvaluationJobLauncher {
 		this.evaluationService = evaluationService;
 		this.p0EvidenceCollector = p0EvidenceCollector;
 		this.p1EvidenceCollector = p1EvidenceCollector;
+		this.p2EvidenceCollector = p2EvidenceCollector;
 		this.aiAnalysisRequestAssembler = aiAnalysisRequestAssembler;
 		this.portfolioReportClient = portfolioReportClient;
 		this.aiAnalysisResponseValidator = aiAnalysisResponseValidator;
@@ -44,10 +47,13 @@ public class EvaluationJobLauncher {
 			EvaluationInputSnapshot inputSnapshot =
 					evaluationService.startCollection(analysisId);
 			P0EvidenceSnapshot evidenceSnapshot =
-					p1EvidenceCollector.collect(
+					p2EvidenceCollector.collect(
 							githubAccessToken,
-							inputSnapshot,
-							p0EvidenceCollector.collect(githubAccessToken, inputSnapshot)
+							p1EvidenceCollector.collect(
+									githubAccessToken,
+									inputSnapshot,
+									p0EvidenceCollector.collect(githubAccessToken, inputSnapshot)
+							)
 					);
 			AiAnalysisRequest aiRequest = aiAnalysisRequestAssembler.assemble(
 					analysisId,
