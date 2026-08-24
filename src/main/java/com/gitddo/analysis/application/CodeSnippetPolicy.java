@@ -5,28 +5,39 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Component
 public class CodeSnippetPolicy {
 
 	static final int MAX_SNIPPETS_PER_REPOSITORY = 8;
+	static final int MAX_SNIPPETS_PER_SOURCE = 2;
 	static final int MAX_FILE_CANDIDATES = 16;
 	static final int MAX_FILE_BYTES = 80_000;
 	static final int MAX_SNIPPET_LINES = 40;
 	static final int MAX_SNIPPET_CHARS = 4_000;
 
-	private static final Pattern INTERESTING = Pattern.compile(
-			"(?i)^\\s*(?:@\\w+|"
-					+ "(?:public |protected |private )?(?:static )?(?:final )?(?:class|interface|enum|record)\\s|"
-					+ "(?:export )?(?:async )?(?:function|class|const|def )\\s|"
-					+ "func\\s)"
-	);
-	private static final Pattern IMPORT_OR_PACKAGE = Pattern.compile(
-			"(?i)^\\s*(package |import |from |using |#include )"
-	);
 	private static final Pattern SECRET_MARKER = Pattern.compile(
 			"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|AWS_SECRET_ACCESS_KEY"
+	);
+	private static final Pattern METHOD = Pattern.compile(
+			"(?i)(?:(?:public|protected|private|static|final|synchronized|native|default|abstract)\\s+)+"
+					+ "[\\w.<>,?\\[\\]]+[\\w.<>,?\\[\\]\\s]*\\s+([\\w$]+)\\s*\\(([^)]*)\\)"
+	);
+	private static final Pattern ACCESSOR_NAME = Pattern.compile("^(get|set|is)[A-Z].*");
+	private static final Set<String> NOT_METHOD_NAMES = Set.of(
+			"if",
+			"for",
+			"while",
+			"switch",
+			"catch",
+			"synchronized",
+			"return",
+			"new",
+			"throw",
+			"assert"
 	);
 
 	public boolean isSecretPath(String path) {
@@ -49,9 +60,9 @@ public class CodeSnippetPolicy {
 		if (lines.isEmpty()) {
 			return null;
 		}
-		int startIndex = firstInterestingIndex(lines);
+		int startIndex = firstNonAccessorMethodIndex(lines);
 		if (startIndex < 0) {
-			startIndex = firstContentAfterImports(lines);
+			return null;
 		}
 		startIndex = includeLeadingAnnotations(lines, startIndex);
 		int endIndex = Math.min(lines.size(), startIndex + MAX_SNIPPET_LINES);
@@ -68,22 +79,37 @@ public class CodeSnippetPolicy {
 		return new Snippet(text, startIndex + 1, startIndex + selected.size(), truncated);
 	}
 
-	private int firstInterestingIndex(List<String> lines) {
+	private int firstNonAccessorMethodIndex(List<String> lines) {
 		for (int index = 0; index < lines.size(); index++) {
-			if (INTERESTING.matcher(lines.get(index)).find()) {
+			MethodSignature method = methodSignature(lines.get(index));
+			if (method != null && !isJavaBeanAccessor(method)) {
 				return index;
 			}
 		}
 		return -1;
 	}
 
-	private int firstContentAfterImports(List<String> lines) {
-		int index = 0;
-		while (index < lines.size()
-				&& (lines.get(index).isBlank() || IMPORT_OR_PACKAGE.matcher(lines.get(index)).find())) {
-			index++;
+	private MethodSignature methodSignature(String line) {
+		Matcher matcher = METHOD.matcher(line);
+		if (!matcher.find()) {
+			return null;
 		}
-		return Math.min(index, lines.size() - 1);
+		String name = matcher.group(1);
+		if (name == null || NOT_METHOD_NAMES.contains(name.toLowerCase(Locale.ROOT))) {
+			return null;
+		}
+		return new MethodSignature(name, matcher.group(2) == null ? "" : matcher.group(2).strip());
+	}
+
+	private boolean isJavaBeanAccessor(MethodSignature method) {
+		if (!ACCESSOR_NAME.matcher(method.name()).matches()) {
+			return false;
+		}
+		String params = method.params();
+		if (method.name().startsWith("set")) {
+			return !params.isEmpty() && !params.contains(",");
+		}
+		return params.isEmpty();
 	}
 
 	private int includeLeadingAnnotations(List<String> lines, int startIndex) {
@@ -134,5 +160,8 @@ public class CodeSnippetPolicy {
 			int endLine,
 			boolean truncated
 	) {
+	}
+
+	private record MethodSignature(String name, String params) {
 	}
 }

@@ -19,8 +19,10 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,11 +33,11 @@ public class P2EvidenceCollector {
 	private static final Pattern FILE_LINE = Pattern.compile(
 			"^(\\S+)\\t([^\\t]+)\\t\\+(\\d+)/-(\\d+)$"
 	);
-	private static final Pattern HEAD_SHA = Pattern.compile("^headSha=(.+)$", Pattern.MULTILINE);
 
 	private final GithubAnalysisClient githubAnalysisClient;
 	private final ActivityImpactPolicy activityImpactPolicy;
 	private final CodeSnippetPolicy codeSnippetPolicy;
+	private final CurrentPathResolver currentPathResolver = new CurrentPathResolver();
 
 	public P2EvidenceCollector(
 			GithubAnalysisClient githubAnalysisClient,
@@ -82,16 +84,26 @@ public class P2EvidenceCollector {
 			List<P0EvidenceSnapshot.Warning> warnings,
 			int nextId
 	) {
-		List<FileCandidate> candidates = rankCandidates(evidence, repository.repositoryId());
+		CurrentTreeIndex currentTree = CurrentTreeIndex.from(evidence, repository.repositoryId());
+		List<FileCandidate> candidates = rankCandidates(
+				evidence,
+				repository,
+				currentTree,
+				warnings
+		);
 		if (candidates.isEmpty()) {
 			return nextId;
 		}
 		RepositoryName repositoryName = RepositoryName.parse(repository.fullName());
 		Set<String> seenSnippets = new HashSet<>();
+		Map<String, Integer> snippetsByOrigin = new LinkedHashMap<>();
 		int added = 0;
 		for (FileCandidate candidate : candidates) {
 			if (added >= CodeSnippetPolicy.MAX_SNIPPETS_PER_REPOSITORY) {
 				break;
+			}
+			if (reachedOriginLimit(snippetsByOrigin, candidate.originSourceId())) {
+				continue;
 			}
 			if (codeSnippetPolicy.isSecretPath(candidate.path())) {
 				warnings.add(warning(
@@ -102,7 +114,13 @@ public class P2EvidenceCollector {
 				));
 				continue;
 			}
-			DecodedFile decoded = fetchSource(accessToken, repositoryName, candidate, warnings, repository.repositoryId());
+			DecodedFile decoded = fetchSource(
+					accessToken,
+					repositoryName,
+					candidate,
+					warnings,
+					repository.repositoryId()
+			);
 			if (decoded == null) {
 				continue;
 			}
@@ -138,8 +156,9 @@ public class P2EvidenceCollector {
 					snippet.text(),
 					sha256(snippet.text()),
 					snippet.truncated(),
-					List.of(candidate.sourceEvidenceId())
+					candidate.sourceEvidenceIds()
 			));
+			countOrigin(snippetsByOrigin, candidate.originSourceId());
 			added++;
 		}
 		return nextId;
@@ -147,21 +166,51 @@ public class P2EvidenceCollector {
 
 	private List<FileCandidate> rankCandidates(
 			List<P0EvidenceSnapshot.Evidence> evidence,
-			String repositoryId
+			P0EvidenceSnapshot.RepositorySnapshot repository,
+			CurrentTreeIndex currentTree,
+			List<P0EvidenceSnapshot.Warning> warnings
 	) {
-		LinkedHashMap<String, FileCandidate> unique = new LinkedHashMap<>();
+		LinkedHashMap<String, AccumulableCandidate> unique = new LinkedHashMap<>();
+		LinkedHashMap<String, String> unresolved = new LinkedHashMap<>();
+		LinkedHashMap<String, String> remapped = new LinkedHashMap<>();
 		for (P0EvidenceSnapshot.Evidence item : evidence) {
-			if (!repositoryId.equals(item.repositoryId()) || item.analysisDepth() != AnalysisDepth.P1) {
+			if (!repository.repositoryId().equals(item.repositoryId()) || item.analysisDepth() != AnalysisDepth.P1) {
 				continue;
 			}
 			if (item.kind() == EvidenceKind.CHANGED_FILES) {
-				addFiles(unique, item, item.commitSha(), null, sourceId(item));
+				addFiles(unique, unresolved, remapped, currentTree, repository, item, null, sourceId(item));
 			}
 			if (item.kind() == EvidenceKind.PULL_REQUEST) {
-				addFiles(unique, item, headSha(item), item.pullRequestNumber(), item.evidenceId());
+				addFiles(
+						unique,
+						unresolved,
+						remapped,
+						currentTree,
+						repository,
+						item,
+						item.pullRequestNumber(),
+						item.evidenceId()
+				);
 			}
 		}
+		if (!remapped.isEmpty()) {
+			warnings.add(warning(
+					"PATH_RESOLVED_TO_CURRENT",
+					repository.repositoryId(),
+					null,
+					"P1 경로 " + remapped.size() + "개를 현재 트리 파일로 재해석했습니다."
+			));
+		}
+		for (String originalPath : unresolved.keySet()) {
+			warnings.add(warning(
+					"CODE_PATH_NOT_IN_SNAPSHOT",
+					repository.repositoryId(),
+					originalPath,
+					"P1이 가리킨 경로의 현재 파일을 찾지 못해 코드 조각에서 제외했습니다."
+			));
+		}
 		return unique.values().stream()
+				.map(AccumulableCandidate::toFileCandidate)
 				.sorted(Comparator.comparingDouble(FileCandidate::score).reversed()
 						.thenComparing(FileCandidate::path))
 				.limit(CodeSnippetPolicy.MAX_FILE_CANDIDATES)
@@ -169,13 +218,16 @@ public class P2EvidenceCollector {
 	}
 
 	private void addFiles(
-			LinkedHashMap<String, FileCandidate> unique,
+			LinkedHashMap<String, AccumulableCandidate> unique,
+			LinkedHashMap<String, String> unresolved,
+			LinkedHashMap<String, String> remapped,
+			CurrentTreeIndex currentTree,
+			P0EvidenceSnapshot.RepositorySnapshot repository,
 			P0EvidenceSnapshot.Evidence item,
-			String commitSha,
 			Integer pullRequestNumber,
 			String sourceEvidenceId
 	) {
-		if (commitSha == null || commitSha.isBlank() || sourceEvidenceId == null) {
+		if (sourceEvidenceId == null) {
 			return;
 		}
 		boolean inFiles = false;
@@ -198,12 +250,22 @@ public class P2EvidenceCollector {
 			if (weight <= 0) {
 				continue;
 			}
-			double score = weight * Math.max(1, additions + deletions);
-			String key = commitSha + ":" + path;
-			FileCandidate existing = unique.get(key);
-			if (existing == null || score > existing.score()) {
-				unique.put(key, new FileCandidate(path, commitSha, pullRequestNumber, sourceEvidenceId, score));
+			CurrentPathResolver.ResolvedPath resolved = currentPathResolver.resolve(path, currentTree);
+			if (!resolved.found()) {
+				unresolved.putIfAbsent(path, path);
+				continue;
 			}
+			if (resolved.remapped()) {
+				remapped.putIfAbsent(path, resolved.currentPath());
+			}
+			double score = weight * Math.max(1, additions + deletions);
+			String key = normalizePath(resolved.currentPath());
+			unique.computeIfAbsent(key, ignored -> new AccumulableCandidate(
+					resolved.currentPath(),
+					repository.snapshotSha(),
+					pullRequestNumber,
+					sourceEvidenceId
+			)).add(score, sourceEvidenceId, pullRequestNumber);
 		}
 	}
 
@@ -302,14 +364,18 @@ public class P2EvidenceCollector {
 		return item.evidenceId();
 	}
 
-	private String headSha(P0EvidenceSnapshot.Evidence item) {
-		if (item.content() != null) {
-			Matcher matcher = HEAD_SHA.matcher(item.content());
-			if (matcher.find() && !matcher.group(1).isBlank()) {
-				return matcher.group(1).strip();
-			}
+	private boolean reachedOriginLimit(Map<String, Integer> snippetsByOrigin, String originSourceId) {
+		if (originSourceId == null || originSourceId.isBlank()) {
+			return false;
 		}
-		return item.commitSha();
+		return snippetsByOrigin.getOrDefault(originSourceId, 0) >= CodeSnippetPolicy.MAX_SNIPPETS_PER_SOURCE;
+	}
+
+	private void countOrigin(Map<String, Integer> snippetsByOrigin, String originSourceId) {
+		if (originSourceId == null || originSourceId.isBlank()) {
+			return;
+		}
+		snippetsByOrigin.merge(originSourceId, 1, Integer::sum);
 	}
 
 	private boolean containsNullByte(byte[] bytes) {
@@ -344,9 +410,58 @@ public class P2EvidenceCollector {
 			String path,
 			String commitSha,
 			Integer pullRequestNumber,
-			String sourceEvidenceId,
+			List<String> sourceEvidenceIds,
+			String originSourceId,
 			double score
 	) {
+	}
+
+	private static final class AccumulableCandidate {
+		private final String path;
+		private final String commitSha;
+		private Integer pullRequestNumber;
+		private final LinkedHashSet<String> sourceEvidenceIds = new LinkedHashSet<>();
+		private String originSourceId;
+		private double score;
+		private double bestContribution;
+
+		private AccumulableCandidate(
+				String path,
+				String commitSha,
+				Integer pullRequestNumber,
+				String originSourceId
+		) {
+			this.path = path;
+			this.commitSha = commitSha;
+			this.pullRequestNumber = pullRequestNumber;
+			this.originSourceId = originSourceId;
+		}
+
+		private void add(double contribution, String sourceEvidenceId, Integer pullRequestNumber) {
+			score += contribution;
+			sourceEvidenceIds.add(sourceEvidenceId);
+			if (contribution > bestContribution) {
+				bestContribution = contribution;
+				originSourceId = sourceEvidenceId;
+				if (pullRequestNumber != null) {
+					this.pullRequestNumber = pullRequestNumber;
+				}
+			}
+			else if (this.pullRequestNumber == null && pullRequestNumber != null) {
+				this.pullRequestNumber = pullRequestNumber;
+			}
+		}
+
+		private FileCandidate toFileCandidate() {
+			return new FileCandidate(
+					path,
+					commitSha,
+					pullRequestNumber,
+					List.copyOf(sourceEvidenceIds),
+					originSourceId,
+					score
+			);
+		}
 	}
 
 	private record DecodedFile(String text) {

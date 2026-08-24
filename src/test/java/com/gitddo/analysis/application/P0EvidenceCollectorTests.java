@@ -56,6 +56,10 @@ class P0EvidenceCollectorTests {
 								entry("build.gradle", "build-sha", 30L),
 								entry("settings.gradle", "settings-sha", 10L),
 								entry(".env", "env-sha", 20L),
+								entry(".DS_Store", "ds-sha", 6L),
+								entry(".idea/workspace.xml", "idea-sha", 80L),
+								entry("Users/kimjunghyun/.zshrc", "zsh-sha", 10L),
+								entry(".env.example", "env-example-sha", 12L),
 								treeEntry("src"),
 								treeEntry("src/test"),
 								treeEntry("src/test/java"),
@@ -103,10 +107,25 @@ class P0EvidenceCollectorTests {
 				.orElseThrow()
 				.evidenceId();
 		assertThat(snapshot.evidence())
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.FILE_TREE_SUMMARY)
+				.singleElement()
+				.satisfies(evidence -> {
+					assertThat(evidence.content()).contains("README.md");
+					assertThat(evidence.content()).contains(".env.example");
+					assertThat(evidence.content().lines()).noneMatch(line ->
+							line.endsWith("\t.DS_Store")
+									|| line.endsWith("\t.env")
+									|| line.contains(".idea/")
+									|| line.contains("Users/kimjunghyun"));
+				});
+		assertThat(snapshot.evidence())
 				.filteredOn(evidence -> evidence.kind() == EvidenceKind.PROJECT_STRUCTURE)
 				.singleElement()
 				.satisfies(evidence -> {
 					assertThat(evidence.content()).contains("testFileCount=1");
+					assertThat(evidence.content()).contains("omittedNoiseEntryCount=4");
+					assertThat(evidence.content()).contains("hasEnvFile=true");
+					assertThat(evidence.content()).contains("hasEditorOrOsJunk=true");
 					assertThat(evidence.sourceEvidenceRefs())
 							.containsExactly(fileTreeSummaryId);
 				});
