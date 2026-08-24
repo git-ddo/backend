@@ -40,15 +40,17 @@ public class ActivityImpactPolicy {
 			".swift",
 			".rs"
 	);
-	private static final List<String> CORE_PATH_SEGMENTS = List.of(
-			"/domain/",
-			"/entity/",
+	private static final List<String> BEHAVIOR_PATH_SEGMENTS = List.of(
 			"/service/",
 			"/application/",
 			"/usecase/",
 			"/controller/",
 			"/presentation/",
 			"/adapter/"
+	);
+	private static final List<String> MODEL_PATH_SEGMENTS = List.of(
+			"/domain/",
+			"/entity/"
 	);
 	private static final Pattern KEYWORD = Pattern.compile(
 			"(?i)(^|[\\s:()\\-_/])(feat|feature|refactor|arch|architecture|domain)($|[\\s:()\\-_/])"
@@ -78,11 +80,14 @@ public class ActivityImpactPolicy {
 			return 0;
 		}
 		if (isSource(normalized)) {
-			if (isCorePath(normalized)) {
+			if (isBehaviorPath(normalized)) {
 				return 3.0;
 			}
 			if (isTestPath(normalized)) {
 				return 0.8;
+			}
+			if (isModelPath(normalized)) {
+				return 1.0;
 			}
 			return 1.5;
 		}
@@ -119,8 +124,12 @@ public class ActivityImpactPolicy {
 		return SOURCE_EXTENSIONS.contains(fileName.substring(dot));
 	}
 
-	private boolean isCorePath(String path) {
-		return CORE_PATH_SEGMENTS.stream().anyMatch(path::contains);
+	private boolean isBehaviorPath(String path) {
+		return BEHAVIOR_PATH_SEGMENTS.stream().anyMatch(path::contains);
+	}
+
+	private boolean isModelPath(String path) {
+		return MODEL_PATH_SEGMENTS.stream().anyMatch(path::contains);
 	}
 
 	private boolean isTestPath(String path) {

@@ -30,7 +30,7 @@ class P2EvidenceCollectorTests {
 				"git-ddo",
 				"backend",
 				"src/main/java/com/gitddo/billing/domain/Invoice.java",
-				"def456"
+				"commit-sha"
 		)).thenReturn(file(
 				"src/main/java/com/gitddo/billing/domain/Invoice.java",
 				"""
@@ -48,7 +48,7 @@ class P2EvidenceCollectorTests {
 				"git-ddo",
 				"backend",
 				"src/AuthFilter.java",
-				"abc123"
+				"commit-sha"
 		)).thenReturn(file(
 				"src/AuthFilter.java",
 				"""
@@ -87,9 +87,9 @@ class P2EvidenceCollectorTests {
 				.filteredOn(evidence -> "src/main/java/com/gitddo/billing/domain/Invoice.java".equals(evidence.path()))
 				.singleElement()
 				.satisfies(evidence -> {
-					assertThat(evidence.commitSha()).isEqualTo("def456");
+					assertThat(evidence.commitSha()).isEqualTo("commit-sha");
 					assertThat(evidence.pullRequestNumber()).isEqualTo(12);
-					assertThat(evidence.content()).contains("public class Invoice");
+					assertThat(evidence.content()).contains("public int total()");
 					assertThat(evidence.content()).doesNotContain("package com.gitddo.billing.domain");
 					assertThat(evidence.sourceEvidenceRefs()).contains("ev_004");
 				});
@@ -114,9 +114,7 @@ class P2EvidenceCollectorTests {
 					}
 				}
 				""";
-		when(client.fetchFileAtRef("token", "git-ddo", "backend", "src/AuthFilter.java", "pr-sha"))
-				.thenReturn(file("src/AuthFilter.java", source));
-		when(client.fetchFileAtRef("token", "git-ddo", "backend", "src/AuthFilter.java", "merge-sha"))
+		when(client.fetchFileAtRef("token", "git-ddo", "backend", "src/AuthFilter.java", "commit-sha"))
 				.thenReturn(file("src/AuthFilter.java", source));
 
 		P0EvidenceSnapshot p1 = new P0EvidenceSnapshot(
@@ -133,6 +131,7 @@ class P2EvidenceCollectorTests {
 						false
 				)),
 				List.of(
+						treeSummary("blob\tsrc/AuthFilter.java"),
 						activity(
 								"ev_001",
 								EvidenceKind.PULL_REQUEST,
@@ -170,7 +169,25 @@ class P2EvidenceCollectorTests {
 				.filteredOn(evidence -> evidence.kind() == EvidenceKind.CODE_SNIPPET)
 				.hasSize(1)
 				.first()
-				.satisfies(evidence -> assertThat(evidence.path()).isEqualTo("src/AuthFilter.java"));
+				.satisfies(evidence -> {
+					assertThat(evidence.path()).isEqualTo("src/AuthFilter.java");
+					assertThat(evidence.commitSha()).isEqualTo("commit-sha");
+					assertThat(evidence.sourceEvidenceRefs()).containsExactly("ev_001", "ev_002");
+				});
+		verify(client, never()).fetchFileAtRef(
+				"token",
+				"git-ddo",
+				"backend",
+				"src/AuthFilter.java",
+				"pr-sha"
+		);
+		verify(client, never()).fetchFileAtRef(
+				"token",
+				"git-ddo",
+				"backend",
+				"src/AuthFilter.java",
+				"merge-sha"
+		);
 	}
 
 	@Test
@@ -226,6 +243,316 @@ class P2EvidenceCollectorTests {
 		);
 	}
 
+	@Test
+	void fetchesCurrentPathAtSnapshotShaWhenPackageWasRefactored() {
+		GithubAnalysisClient client = mock(GithubAnalysisClient.class);
+		when(client.fetchFileAtRef(
+				"token",
+				"git-ddo",
+				"backend",
+				"src/main/java/com/qeat/service/TableService.java",
+				"commit-sha"
+		)).thenReturn(file(
+				"src/main/java/com/qeat/service/TableService.java",
+				"""
+						package com.qeat.service;
+						
+						@Service
+						public class TableService {
+							public void addTable() {}
+						}
+						"""
+		));
+
+		P0EvidenceSnapshot p1 = new P0EvidenceSnapshot(
+				1,
+				P0EvidenceSnapshot.P1_EXTRACTOR_VERSION,
+				Instant.parse("2026-08-23T00:00:00Z"),
+				List.of(new P0EvidenceSnapshot.RepositorySnapshot(
+						"123",
+						"git-ddo/backend",
+						"commit-sha",
+						"tree-sha",
+						Map.of("Java", 10L),
+						1,
+						false
+				)),
+				List.of(
+						treeSummary("blob\tsrc/main/java/com/qeat/service/TableService.java"),
+						activity(
+								"ev_010",
+								EvidenceKind.PULL_REQUEST,
+								"old-sha",
+								17,
+								"""
+										number=17
+										headSha=old-sha
+										files:
+										added	src/main/java/com/example/demo/Service/TableService.java	+155/-0
+										"""
+						)
+				),
+				List.of()
+		);
+
+		P0EvidenceSnapshot snapshot = new P2EvidenceCollector(
+				client,
+				new ActivityImpactPolicy(),
+				new CodeSnippetPolicy()
+		).collect("token", p1);
+
+		assertThat(snapshot.evidence())
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.CODE_SNIPPET)
+				.singleElement()
+				.satisfies(evidence -> {
+					assertThat(evidence.path()).isEqualTo("src/main/java/com/qeat/service/TableService.java");
+					assertThat(evidence.commitSha()).isEqualTo("commit-sha");
+					assertThat(evidence.pullRequestNumber()).isEqualTo(17);
+					assertThat(evidence.content()).contains("addTable");
+					assertThat(evidence.sourceEvidenceRefs()).contains("ev_010");
+				});
+		assertThat(snapshot.warnings())
+				.filteredOn(warning -> "PATH_RESOLVED_TO_CURRENT".equals(warning.code()))
+				.singleElement()
+				.satisfies(warning -> {
+					assertThat(warning.path()).isNull();
+					assertThat(warning.message()).isEqualTo("P1 경로 1개를 현재 트리 파일로 재해석했습니다.");
+				});
+		verify(client, never()).fetchFileAtRef(
+				"token",
+				"git-ddo",
+				"backend",
+				"src/main/java/com/example/demo/Service/TableService.java",
+				"old-sha"
+		);
+	}
+
+	@Test
+	void skipsHistoricalFileThatIsGoneFromCurrentTree() {
+		GithubAnalysisClient client = mock(GithubAnalysisClient.class);
+		P0EvidenceSnapshot p1 = new P0EvidenceSnapshot(
+				1,
+				P0EvidenceSnapshot.P1_EXTRACTOR_VERSION,
+				Instant.parse("2026-08-23T00:00:00Z"),
+				List.of(new P0EvidenceSnapshot.RepositorySnapshot(
+						"123",
+						"git-ddo/backend",
+						"commit-sha",
+						"tree-sha",
+						Map.of("Java", 10L),
+						1,
+						false
+				)),
+				List.of(
+						treeSummary("blob\tsrc/main/java/com/qeat/service/TableService.java"),
+						activity(
+								"ev_011",
+								EvidenceKind.CHANGED_FILES,
+								"old-sha",
+								null,
+								"""
+										sha=old-sha
+										files:
+										added	src/main/java/com/example/demo/controller/SejongController.java	+34/-0
+										"""
+						)
+				),
+				List.of()
+		);
+
+		P0EvidenceSnapshot snapshot = new P2EvidenceCollector(
+				client,
+				new ActivityImpactPolicy(),
+				new CodeSnippetPolicy()
+		).collect("token", p1);
+
+		assertThat(snapshot.evidence())
+				.noneMatch(evidence -> evidence.kind() == EvidenceKind.CODE_SNIPPET);
+		assertThat(snapshot.warnings())
+				.extracting(P0EvidenceSnapshot.Warning::code)
+				.contains("CODE_PATH_NOT_IN_SNAPSHOT", "MISSING_CODE_SNIPPET");
+		verify(client, never()).fetchFileAtRef(
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any()
+		);
+	}
+
+	@Test
+	void skipsGetterOnlyDomainFile() {
+		GithubAnalysisClient client = mock(GithubAnalysisClient.class);
+		when(client.fetchFileAtRef(
+				"token",
+				"git-ddo",
+				"backend",
+				"src/main/java/com/gitddo/user/domain/User.java",
+				"commit-sha"
+		)).thenReturn(file(
+				"src/main/java/com/gitddo/user/domain/User.java",
+				"""
+						public class User {
+							private String email;
+							public String getEmail() { return email; }
+							public void setEmail(String email) { this.email = email; }
+						}
+						"""
+		));
+		when(client.fetchFileAtRef(
+				"token",
+				"git-ddo",
+				"backend",
+				"src/main/java/com/gitddo/user/service/UserService.java",
+				"commit-sha"
+		)).thenReturn(file(
+				"src/main/java/com/gitddo/user/service/UserService.java",
+				"""
+						public class UserService {
+							public void register() {}
+						}
+						"""
+		));
+
+		P0EvidenceSnapshot p1 = new P0EvidenceSnapshot(
+				1,
+				P0EvidenceSnapshot.P1_EXTRACTOR_VERSION,
+				Instant.parse("2026-08-23T00:00:00Z"),
+				List.of(new P0EvidenceSnapshot.RepositorySnapshot(
+						"123",
+						"git-ddo/backend",
+						"commit-sha",
+						"tree-sha",
+						Map.of("Java", 10L),
+						1,
+						false
+				)),
+				List.of(
+						treeSummary(
+								"""
+										blob	src/main/java/com/gitddo/user/domain/User.java
+										blob	src/main/java/com/gitddo/user/service/UserService.java
+										"""
+						),
+						activity("ev_002", EvidenceKind.COMMIT_SUMMARY, "init-sha", null, "sha=init-sha"),
+						activity(
+								"ev_020",
+								EvidenceKind.CHANGED_FILES,
+								"init-sha",
+								null,
+								"""
+										sha=init-sha
+										files:
+										added	src/main/java/com/gitddo/user/domain/User.java	+80/-0
+										added	src/main/java/com/gitddo/user/service/UserService.java	+20/-0
+										"""
+						)
+				),
+				List.of()
+		);
+
+		P0EvidenceSnapshot snapshot = new P2EvidenceCollector(
+				client,
+				new ActivityImpactPolicy(),
+				new CodeSnippetPolicy()
+		).collect("token", p1);
+
+		assertThat(snapshot.evidence())
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.CODE_SNIPPET)
+				.singleElement()
+				.satisfies(evidence -> {
+					assertThat(evidence.path()).isEqualTo("src/main/java/com/gitddo/user/service/UserService.java");
+					assertThat(evidence.content()).contains("register");
+				});
+	}
+
+	@Test
+	void capsSnippetsFromTheSameOriginSource() {
+		GithubAnalysisClient client = mock(GithubAnalysisClient.class);
+		when(client.fetchFileAtRef(
+				"token", "git-ddo", "backend",
+				"src/main/java/com/gitddo/a/service/AlphaService.java", "commit-sha"
+		)).thenReturn(file(
+				"src/main/java/com/gitddo/a/service/AlphaService.java",
+				"public class AlphaService { public void run() {} }"
+		));
+		when(client.fetchFileAtRef(
+				"token", "git-ddo", "backend",
+				"src/main/java/com/gitddo/b/service/BetaService.java", "commit-sha"
+		)).thenReturn(file(
+				"src/main/java/com/gitddo/b/service/BetaService.java",
+				"public class BetaService { public void run() {} }"
+		));
+		when(client.fetchFileAtRef(
+				"token", "git-ddo", "backend",
+				"src/main/java/com/gitddo/c/service/GammaService.java", "commit-sha"
+		)).thenReturn(file(
+				"src/main/java/com/gitddo/c/service/GammaService.java",
+				"public class GammaService { public void run() {} }"
+		));
+
+		P0EvidenceSnapshot p1 = new P0EvidenceSnapshot(
+				1,
+				P0EvidenceSnapshot.P1_EXTRACTOR_VERSION,
+				Instant.parse("2026-08-23T00:00:00Z"),
+				List.of(new P0EvidenceSnapshot.RepositorySnapshot(
+						"123",
+						"git-ddo/backend",
+						"commit-sha",
+						"tree-sha",
+						Map.of("Java", 10L),
+						1,
+						false
+				)),
+				List.of(
+						treeSummary(
+								"""
+										blob	src/main/java/com/gitddo/a/service/AlphaService.java
+										blob	src/main/java/com/gitddo/b/service/BetaService.java
+										blob	src/main/java/com/gitddo/c/service/GammaService.java
+										"""
+						),
+						activity("ev_002", EvidenceKind.COMMIT_SUMMARY, "init-sha", null, "sha=init-sha"),
+						activity(
+								"ev_021",
+								EvidenceKind.CHANGED_FILES,
+								"init-sha",
+								null,
+								"""
+										sha=init-sha
+										files:
+										added	src/main/java/com/gitddo/a/service/AlphaService.java	+40/-0
+										added	src/main/java/com/gitddo/b/service/BetaService.java	+30/-0
+										added	src/main/java/com/gitddo/c/service/GammaService.java	+20/-0
+										"""
+						)
+				),
+				List.of()
+		);
+
+		P0EvidenceSnapshot snapshot = new P2EvidenceCollector(
+				client,
+				new ActivityImpactPolicy(),
+				new CodeSnippetPolicy()
+		).collect("token", p1);
+
+		assertThat(snapshot.evidence())
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.CODE_SNIPPET)
+				.hasSize(2)
+				.extracting(P0EvidenceSnapshot.Evidence::path)
+				.containsExactly(
+						"src/main/java/com/gitddo/a/service/AlphaService.java",
+						"src/main/java/com/gitddo/b/service/BetaService.java"
+				);
+		verify(client, never()).fetchFileAtRef(
+				"token",
+				"git-ddo",
+				"backend",
+				"src/main/java/com/gitddo/c/service/GammaService.java",
+				"commit-sha"
+		);
+	}
+
 	private P0EvidenceSnapshot p1Snapshot() {
 		return new P0EvidenceSnapshot(
 				1,
@@ -241,6 +568,12 @@ class P2EvidenceCollectorTests {
 						false
 				)),
 				List.of(
+						treeSummary(
+								"""
+										blob	src/AuthFilter.java
+										blob	src/main/java/com/gitddo/billing/domain/Invoice.java
+										"""
+						),
 						new P0EvidenceSnapshot.Evidence(
 								"ev_001",
 								EvidenceType.GITHUB_STATIC,
@@ -284,6 +617,26 @@ class P2EvidenceCollectorTests {
 										"""
 						)
 				),
+				List.of()
+		);
+	}
+
+	private P0EvidenceSnapshot.Evidence treeSummary(String content) {
+		return new P0EvidenceSnapshot.Evidence(
+				"ev_tree",
+				EvidenceType.GITHUB_STATIC,
+				EvidenceKind.FILE_TREE_SUMMARY,
+				AnalysisDepth.P0,
+				"123",
+				"commit-sha",
+				null,
+				null,
+				null,
+				null,
+				null,
+				content,
+				"tree-hash",
+				false,
 				List.of()
 		);
 	}

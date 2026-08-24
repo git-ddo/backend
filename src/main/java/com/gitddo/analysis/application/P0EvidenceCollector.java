@@ -153,8 +153,11 @@ public class P0EvidenceCollector {
 		List<GithubTreeEntryPayload> sortedEntries = tree.tree().stream()
 				.sorted(Comparator.comparing(GithubTreeEntryPayload::path))
 				.toList();
-		boolean limitedTree = sortedEntries.size() > P0FileSelectionPolicy.MAX_TREE_ENTRIES;
-		String treeSummary = sortedEntries.stream()
+		List<GithubTreeEntryPayload> visibleEntries = sortedEntries.stream()
+				.filter(entry -> !fileSelectionPolicy.omitFromTree(entry.path()))
+				.toList();
+		boolean limitedTree = visibleEntries.size() > P0FileSelectionPolicy.MAX_TREE_ENTRIES;
+		String treeSummary = visibleEntries.stream()
 				.limit(P0FileSelectionPolicy.MAX_TREE_ENTRIES)
 				.map(entry -> entry.type() + "\t" + entry.path())
 				.reduce((left, right) -> left + "\n" + right)
@@ -206,7 +209,7 @@ public class P0EvidenceCollector {
 				repositoryId,
 				snapshotSha,
 				null,
-				projectStructure(sortedEntries),
+				projectStructure(sortedEntries, visibleEntries),
 				false,
 				fileTreeSummaryCandidate
 		));
@@ -406,8 +409,11 @@ public class P0EvidenceCollector {
 				.orElse("");
 	}
 
-	private String projectStructure(List<GithubTreeEntryPayload> entries) {
-		List<String> paths = entries.stream()
+	private String projectStructure(
+			List<GithubTreeEntryPayload> allEntries,
+			List<GithubTreeEntryPayload> visibleEntries
+	) {
+		List<String> paths = visibleEntries.stream()
 				.filter(GithubTreeEntryPayload::isBlob)
 				.map(GithubTreeEntryPayload::path)
 				.map(path -> path.toLowerCase(Locale.ROOT))
@@ -427,16 +433,27 @@ public class P0EvidenceCollector {
 				.anyMatch(path -> path.endsWith("dockerfile")
 						|| path.contains("docker-compose")
 						|| path.contains("compose."));
+		long omittedNoiseEntryCount = allEntries.size() - visibleEntries.size();
+		boolean hasEnvFile = allEntries.stream()
+				.anyMatch(entry -> fileSelectionPolicy.isEnvSecretPath(entry.path()));
+		boolean hasEditorOrOsJunk = allEntries.stream()
+				.anyMatch(entry -> fileSelectionPolicy.isEditorOrOsJunk(entry.path()));
 		return """
 				testFileCount=%d
 				migrationFileCount=%d
 				hasCi=%s
 				hasDocker=%s
+				omittedNoiseEntryCount=%d
+				hasEnvFile=%s
+				hasEditorOrOsJunk=%s
 				""".formatted(
 				testFileCount,
 				migrationFileCount,
 				hasCi,
-				hasDocker
+				hasDocker,
+				omittedNoiseEntryCount,
+				hasEnvFile,
+				hasEditorOrOsJunk
 		).strip();
 	}
 

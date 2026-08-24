@@ -47,4 +47,24 @@ class ActivityImpactPolicyTests {
 				))
 		);
 	}
+
+	@Test
+	void prefersBehaviorPathsOverDomainModelsWithTheSameLineCount() {
+		double domain = policy.score("feat: add user fields", List.of(
+				new ActivityImpactPolicy.FileChange(
+						"src/main/java/com/gitddo/user/domain/User.java",
+						80,
+						0
+				)
+		));
+		double service = policy.score("feat: add user fields", List.of(
+				new ActivityImpactPolicy.FileChange(
+						"src/main/java/com/gitddo/user/service/UserService.java",
+						80,
+						0
+				)
+		));
+
+		assertThat(service).isGreaterThan(domain);
+	}
 }
