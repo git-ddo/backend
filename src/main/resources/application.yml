@@ -51,6 +51,12 @@ gitddo:
     mode: ${GITDDO_AI_MODE:mock}
     base-url: ${GITDDO_AI_BASE_URL:}
     reports-path: ${GITDDO_AI_REPORTS_PATH:/internal/v1/portfolio-reports}
+    api-key: ${GITDDO_AI_API_KEY:}
+    api-key-header: ${GITDDO_AI_API_KEY_HEADER:X-Gitddo-Ai-Key}
+    connect-timeout: ${GITDDO_AI_CONNECT_TIMEOUT:5s}
+    read-timeout: ${GITDDO_AI_READ_TIMEOUT:600s}
+    max-attempts: ${GITDDO_AI_MAX_ATTEMPTS:3}
+    retry-delay: ${GITDDO_AI_RETRY_DELAY:2s}
 
 springdoc:
   api-docs:
