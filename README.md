@@ -99,6 +99,15 @@ docker compose down
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App에서 발급 |
 | `SESSION_COOKIE_SECURE` | 로컬 `false`, HTTPS 운영 환경 `true` |
 | `SPRINGDOC_ENABLED` | 로컬 `true`, 운영 환경에서는 필요에 따라 `false` |
+| `GITDDO_AI_MODE` | `mock` (실제 AI 서버 없이 평가 흐름 검증). 연동 시 `http` |
+| `GITDDO_AI_BASE_URL` | `http` 모드에서 필수. AI 서버 origin (예: `http://localhost:8000`) |
+| `GITDDO_AI_REPORTS_PATH` | `/internal/v1/portfolio-reports` |
+| `GITDDO_AI_API_KEY` | 비어 있으면 인증 헤더를 보내지 않음 |
+| `GITDDO_AI_API_KEY_HEADER` | `X-Gitddo-Ai-Key` |
+| `GITDDO_AI_CONNECT_TIMEOUT` | `5s` |
+| `GITDDO_AI_READ_TIMEOUT` | `600s` |
+| `GITDDO_AI_MAX_ATTEMPTS` | `3` (`retryable` 오류와 네트워크 실패만 재시도) |
+| `GITDDO_AI_RETRY_DELAY` | `2s` |
 
 운영 환경에서는 기본 비밀번호를 사용하지 않습니다.
 
@@ -217,7 +226,8 @@ P2는 그 커밋/PR이 가리키는 소스 파일 전체가 아니라, 클래스
 상태 조회에서 `SUCCEEDED`가 반환되면 `report`로 코칭 리포트를 확인할 수 있습니다.
 
 지금은 `gitddo.ai.mode=mock`이 기본값이라 실제 AI 서버 없이 같은 흐름을 검증합니다.
-AI 서버를 붙일 때는 `GITDDO_AI_MODE=http`, `GITDDO_AI_BASE_URL`에 ngrok 등 임시 주소를 넣습니다.
+AI 서버를 붙일 때는 `GITDDO_AI_MODE=http`, `GITDDO_AI_BASE_URL`에 로컬 또는 ngrok 주소를 넣습니다.
+필요하면 `GITDDO_AI_API_KEY`를 넣고, AI 서버는 같은 값의 `X-Gitddo-Ai-Key` 헤더를 검증합니다.
 요청/응답 계약은 `docs/contracts/`와 `docs/contracts/examples/`를 기준으로 맞춥니다.
 
 ```text
