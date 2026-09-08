@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "analysisId": "11111111-1111-4111-8111-111111111111",
   "evaluatorVersion": "mock-1.0",
   "requestedAnalysisDepth": "P1",
@@ -16,28 +16,34 @@
           "findingId": "find_001",
           "category": "DOCUMENTATION",
           "severity": "POSITIVE",
+          "confidence": "HIGH",
           "title": "문서 근거가 있습니다.",
           "detail": "README를 확인했습니다.",
           "evidenceRefs": ["ev_001"],
-          "claimRefs": []
+          "claimRefs": [],
+          "filePaths": ["README.md"]
         },
         {
           "findingId": "find_002",
           "category": "ACTIVITY",
           "severity": "POSITIVE",
+          "confidence": "HIGH",
           "title": "활동 근거가 있습니다.",
           "detail": "임팩트 있는 커밋 요약을 확인했습니다.",
           "evidenceRefs": ["ev_002"],
-          "claimRefs": []
+          "claimRefs": [],
+          "filePaths": []
         },
         {
           "findingId": "find_003",
           "category": "CONTRIBUTION",
           "severity": "INFO",
+          "confidence": "MEDIUM",
           "title": "사용자 기여 주장과 활동 근거를 대조했습니다.",
           "detail": "UserClaim을 활동 Evidence와 함께 해석했으며, 코드 품질은 단정하지 않았습니다.",
           "evidenceRefs": ["ev_002"],
-          "claimRefs": ["claim_001"]
+          "claimRefs": ["claim_001"],
+          "filePaths": []
         }
       ]
     }
@@ -46,28 +52,33 @@
     "strengths": [
       {
         "text": "커밋·PR 근거로 기여 활동을 확인할 수 있습니다.",
+        "confidence": "HIGH",
         "evidenceRefs": ["ev_002"]
       }
     ],
     "gaps": [
       {
         "text": "기여 문장이 특정 커밋과 약하게 연결됩니다.",
+        "confidence": "MEDIUM",
         "evidenceRefs": ["ev_002"]
       }
     ],
     "nextActions": [
       {
         "text": "UserClaim을 임팩트 커밋 Evidence와 한 문장으로 연결하세요.",
+        "confidence": "MEDIUM",
         "evidenceRefs": ["ev_002"]
       }
     ],
     "jobAppeal": {
       "text": "활동 Evidence로 백엔드 구현 경험을 어필할 수 있습니다.",
+      "confidence": "MEDIUM",
       "evidenceRefs": ["ev_002"]
     },
     "portfolioStatements": [
       {
         "text": "API를 구현했습니다.",
+        "confidence": "MEDIUM",
         "evidenceRefs": ["ev_002"],
         "claimRefs": ["claim_001"]
       }
@@ -76,7 +87,12 @@
       {
         "question": "가장 임팩트가 큰 커밋이나 PR에서 본인이 맡은 역할을 근거와 함께 설명하시겠어요?",
         "intent": "활동 Evidence와 UserClaim이 같은 기여를 가리키는지 확인합니다.",
-        "answerGuide": "커밋/PR Evidence를 먼저 말한 뒤, 본인 주장을 그 근거에 연결하면 됩니다.",
+        "answerGuide": [
+          "해당 커밋이나 PR을 먼저 지목합니다.",
+          "본인 주장을 그 근거에 연결해 설명합니다."
+        ],
+        "followUpQuestions": ["그 변경으로 어떤 문제가 해결됐는지 설명해 주시겠어요?"],
+        "confidence": "MEDIUM",
         "evidenceRefs": ["ev_002"],
         "claimRefs": ["claim_001"]
       }

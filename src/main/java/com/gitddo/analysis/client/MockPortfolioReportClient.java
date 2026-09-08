@@ -3,6 +3,7 @@ package com.gitddo.analysis.client;
 import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
 import com.gitddo.analysis.contract.AnalysisDepth;
+import com.gitddo.analysis.contract.Confidence;
 import com.gitddo.analysis.contract.FindingCategory;
 import com.gitddo.analysis.contract.FindingSeverity;
 import com.gitddo.analysis.contract.LimitationCode;
@@ -72,10 +73,12 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 						"find_%03d".formatted(findingSequence++),
 						FindingCategory.CONTRIBUTION,
 						FindingSeverity.INFO,
+						Confidence.MEDIUM,
 						"사용자 기여 주장과 활동 근거를 대조했습니다.",
 						"UserClaim을 활동 Evidence와 함께 해석했으며, 코드 품질은 단정하지 않았습니다.",
 						activityId == null ? List.of() : List.of(activityId),
-						List.of(claim.claimId())
+						List.of(claim.claimId()),
+						List.of()
 				));
 			}
 			for (AiAnalysisResponse.Finding finding : findings) {
@@ -84,6 +87,7 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 				}
 				AiAnalysisResponse.CoachingItem item = new AiAnalysisResponse.CoachingItem(
 						finding.title(),
+						finding.confidence(),
 						finding.evidenceRefs()
 				);
 				if (finding.severity() == FindingSeverity.GAP) {
@@ -143,10 +147,12 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 					"find_%03d".formatted(findingSequence + added),
 					category,
 					present ? FindingSeverity.POSITIVE : FindingSeverity.GAP,
+					present ? Confidence.HIGH : Confidence.MEDIUM,
 					title(category, item.factKey(), present),
 					detail(category, item, present),
 					List.of(item.evidenceId()),
-					List.of()
+					List.of(),
+					item.path() == null ? List.of() : List.of(item.path())
 			));
 			added++;
 		}
@@ -273,6 +279,7 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 		String fact = request.repositories().getFirst().evidence().getFirst().factKey();
 		return List.of(new AiAnalysisResponse.CoachingItem(
 				fact + " 근거를 포트폴리오 설명에 더 구체적으로 연결하세요.",
+				Confidence.MEDIUM,
 				List.of(citedEvidence.getFirst())
 		));
 	}
@@ -284,6 +291,7 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 		return new AiAnalysisResponse.JobAppeal(
 				request.targetJob() + " " + request.targetCareerLevel()
 						+ " 지원자에게 전달된 Evidence만으로 구조와 문서를 어필할 수 있습니다.",
+				Confidence.MEDIUM,
 				List.of(citedEvidence.getFirst())
 		);
 	}
@@ -297,6 +305,7 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 			for (AiAnalysisRequest.UserClaim claim : repository.userClaims()) {
 				statements.add(new AiAnalysisResponse.PortfolioStatement(
 						claim.statement(),
+						Confidence.MEDIUM,
 						citedEvidence.isEmpty() ? List.of() : List.of(citedEvidence.getFirst()),
 						List.of(claim.claimId())
 				));
@@ -305,6 +314,7 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 		if (statements.isEmpty() && !citedEvidence.isEmpty()) {
 			statements.add(new AiAnalysisResponse.PortfolioStatement(
 					"저장소 Evidence를 바탕으로 역할을 문장으로 정리하세요.",
+					Confidence.LOW,
 					List.of(citedEvidence.getFirst()),
 					List.of()
 			));
@@ -359,7 +369,13 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 			return List.of(new AiAnalysisResponse.InterviewQuestion(
 					"선택한 코드 조각에서 본인이 설계하거나 구현한 부분을 근거와 함께 설명하시겠어요?",
 					"P2 코드 Evidence를 보고 구현을 설명하는지 확인합니다.",
-					"파일 경로와 라인 범위를 말한 뒤, 그 조각이 하는 역할을 설명하면 됩니다.",
+					List.of(
+							"먼저 파일 경로와 라인 범위를 말합니다.",
+							"그 조각이 어떤 역할을 하는지 설명합니다.",
+							"본인이 직접 작성한 부분과 그렇게 구현한 이유를 덧붙입니다."
+					),
+					List.of("같은 로직을 다시 구현한다면 어느 부분을 바꾸시겠어요?"),
+					Confidence.HIGH,
 					List.of(codeId),
 					claimRefs
 			));
@@ -374,7 +390,12 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 			return List.of(new AiAnalysisResponse.InterviewQuestion(
 					"가장 임팩트가 큰 커밋이나 PR에서 본인이 맡은 역할을 근거와 함께 설명하시겠어요?",
 					"활동 Evidence와 UserClaim이 같은 기여를 가리키는지 확인합니다.",
-					"커밋/PR Evidence를 먼저 말한 뒤, 본인 주장을 그 근거에 연결하면 됩니다.",
+					List.of(
+							"해당 커밋이나 PR을 먼저 지목합니다.",
+							"본인 주장을 그 근거에 연결해 설명합니다."
+					),
+					List.of("그 변경으로 어떤 문제가 해결됐는지 설명해 주시겠어요?"),
+					Confidence.MEDIUM,
 					List.of(activityId),
 					claimRefs
 			));
@@ -382,7 +403,12 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 		return List.of(new AiAnalysisResponse.InterviewQuestion(
 				repositoryName + "의 디렉터리 구조와 빌드 도구를 어떻게 설명하시겠어요?",
 				"P0 Evidence만으로 구조와 스택을 설명하는지 확인합니다.",
-				"파일 트리와 빌드 매니페스트 Evidence를 기준으로 설명하면 됩니다.",
+				List.of(
+						"파일 트리에서 핵심 디렉터리를 먼저 짚습니다.",
+						"빌드 매니페스트에 있는 의존성으로 스택을 설명합니다."
+				),
+				List.of("그 구조를 선택한 이유가 있다면 무엇인가요?"),
+				Confidence.MEDIUM,
 				List.of(citedEvidence.getFirst()),
 				List.of()
 		));

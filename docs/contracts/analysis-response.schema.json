@@ -16,7 +16,7 @@
     "limitations"
   ],
   "properties": {
-    "schemaVersion": { "const": "1.0" },
+    "schemaVersion": { "const": "1.1" },
     "analysisId": { "type": "string", "format": "uuid" },
     "evaluatorVersion": { "type": "string", "minLength": 1 },
     "requestedAnalysisDepth": { "enum": ["P0", "P1", "P2"] },
@@ -67,10 +67,12 @@
         "findingId",
         "category",
         "severity",
+        "confidence",
         "title",
         "detail",
         "evidenceRefs",
-        "claimRefs"
+        "claimRefs",
+        "filePaths"
       ],
       "properties": {
         "findingId": { "type": "string", "pattern": "^find_[0-9]{3,}$" },
@@ -85,6 +87,7 @@
           ]
         },
         "severity": { "enum": ["INFO", "POSITIVE", "GAP", "RISK"] },
+        "confidence": { "$ref": "#/$defs/confidence" },
         "title": { "type": "string", "minLength": 1 },
         "detail": { "type": "string", "minLength": 1 },
         "evidenceRefs": {
@@ -94,8 +97,18 @@
         "claimRefs": {
           "type": "array",
           "items": { "type": "string", "pattern": "^claim_[0-9]{3,}$" }
+        },
+        "filePaths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/repositoryPath" }
         }
       }
+    },
+    "confidence": { "enum": ["HIGH", "MEDIUM", "LOW"] },
+    "repositoryPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\.\\.).+$"
     },
     "coaching": {
       "type": "object",
@@ -135,9 +148,10 @@
     "coachingItem": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["text", "evidenceRefs"],
+      "required": ["text", "confidence", "evidenceRefs"],
       "properties": {
         "text": { "type": "string", "minLength": 1 },
+        "confidence": { "$ref": "#/$defs/confidence" },
         "evidenceRefs": {
           "type": "array",
           "minItems": 1,
@@ -148,9 +162,10 @@
     "jobAppeal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["text", "evidenceRefs"],
+      "required": ["text", "confidence", "evidenceRefs"],
       "properties": {
         "text": { "type": "string", "minLength": 1 },
+        "confidence": { "$ref": "#/$defs/confidence" },
         "evidenceRefs": {
           "type": "array",
           "minItems": 1,
@@ -161,9 +176,10 @@
     "portfolioStatement": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["text", "evidenceRefs", "claimRefs"],
+      "required": ["text", "confidence", "evidenceRefs", "claimRefs"],
       "properties": {
         "text": { "type": "string", "minLength": 1 },
+        "confidence": { "$ref": "#/$defs/confidence" },
         "evidenceRefs": {
           "type": "array",
           "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
@@ -181,11 +197,28 @@
     "interviewQuestion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["question", "intent", "answerGuide", "evidenceRefs", "claimRefs"],
+      "required": [
+        "question",
+        "intent",
+        "answerGuide",
+        "followUpQuestions",
+        "confidence",
+        "evidenceRefs",
+        "claimRefs"
+      ],
       "properties": {
         "question": { "type": "string", "minLength": 1 },
         "intent": { "type": "string", "minLength": 1 },
-        "answerGuide": { "type": "string", "minLength": 1 },
+        "answerGuide": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "followUpQuestions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "confidence": { "$ref": "#/$defs/confidence" },
         "evidenceRefs": {
           "type": "array",
           "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }

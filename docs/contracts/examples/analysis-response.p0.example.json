@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "analysisId": "11111111-1111-4111-8111-111111111111",
   "evaluatorVersion": "mock-1.0",
   "requestedAnalysisDepth": "P0",
@@ -16,10 +16,12 @@
           "findingId": "find_001",
           "category": "DOCUMENTATION",
           "severity": "POSITIVE",
+          "confidence": "HIGH",
           "title": "문서 근거가 있습니다.",
           "detail": "README를 확인했습니다.",
           "evidenceRefs": ["ev_001"],
-          "claimRefs": []
+          "claimRefs": [],
+          "filePaths": ["README.md"]
         }
       ]
     }
@@ -28,28 +30,33 @@
     "strengths": [
       {
         "text": "README를 바탕으로 문서를 확인할 수 있습니다.",
+        "confidence": "HIGH",
         "evidenceRefs": ["ev_001"]
       }
     ],
     "gaps": [
       {
         "text": "실행 방법이 README에 짧게만 남아 있습니다.",
+        "confidence": "MEDIUM",
         "evidenceRefs": ["ev_001"]
       }
     ],
     "nextActions": [
       {
         "text": "README에 실행 방법을 구체적으로 적으세요.",
+        "confidence": "MEDIUM",
         "evidenceRefs": ["ev_001"]
       }
     ],
     "jobAppeal": {
       "text": "문서와 스택 Evidence로 백엔드 학습 경험을 어필할 수 있습니다.",
+      "confidence": "MEDIUM",
       "evidenceRefs": ["ev_001"]
     },
     "portfolioStatements": [
       {
         "text": "API를 구현했습니다.",
+        "confidence": "MEDIUM",
         "evidenceRefs": ["ev_001"],
         "claimRefs": ["claim_001"]
       }
@@ -58,7 +65,12 @@
       {
         "question": "git-ddo/backend의 디렉터리 구조와 빌드 도구를 어떻게 설명하시겠어요?",
         "intent": "P0 Evidence만으로 구조와 스택을 설명하는지 확인합니다.",
-        "answerGuide": "파일 트리와 빌드 매니페스트 Evidence를 기준으로 설명하면 됩니다.",
+        "answerGuide": [
+          "파일 트리에서 핵심 디렉터리를 먼저 짚습니다.",
+          "빌드 매니페스트에 있는 의존성으로 스택을 설명합니다."
+        ],
+        "followUpQuestions": ["그 구조를 선택한 이유가 있다면 무엇인가요?"],
+        "confidence": "MEDIUM",
         "evidenceRefs": ["ev_001"],
         "claimRefs": []
       }

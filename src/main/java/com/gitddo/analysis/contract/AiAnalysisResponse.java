@@ -14,7 +14,7 @@ public record AiAnalysisResponse(
 		List<Limitation> limitations
 ) {
 
-	public static final String SCHEMA_VERSION = "1.0";
+	public static final String SCHEMA_VERSION = "1.1";
 
 	public AiAnalysisResponse {
 		usedEvidenceLevels = usedEvidenceLevels == null ? List.of() : List.copyOf(usedEvidenceLevels);
@@ -39,15 +39,18 @@ public record AiAnalysisResponse(
 			String findingId,
 			FindingCategory category,
 			FindingSeverity severity,
+			Confidence confidence,
 			String title,
 			String detail,
 			List<String> evidenceRefs,
-			List<String> claimRefs
+			List<String> claimRefs,
+			List<String> filePaths
 	) {
 
 		public Finding {
 			evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
 			claimRefs = claimRefs == null ? List.of() : List.copyOf(claimRefs);
+			filePaths = filePaths == null ? List.of() : List.copyOf(filePaths);
 		}
 	}
 
@@ -71,6 +74,7 @@ public record AiAnalysisResponse(
 
 	public record CoachingItem(
 			String text,
+			Confidence confidence,
 			List<String> evidenceRefs
 	) {
 
@@ -81,6 +85,7 @@ public record AiAnalysisResponse(
 
 	public record JobAppeal(
 			String text,
+			Confidence confidence,
 			List<String> evidenceRefs
 	) {
 
@@ -91,6 +96,7 @@ public record AiAnalysisResponse(
 
 	public record PortfolioStatement(
 			String text,
+			Confidence confidence,
 			List<String> evidenceRefs,
 			List<String> claimRefs
 	) {
@@ -104,12 +110,16 @@ public record AiAnalysisResponse(
 	public record InterviewQuestion(
 			String question,
 			String intent,
-			String answerGuide,
+			List<String> answerGuide,
+			List<String> followUpQuestions,
+			Confidence confidence,
 			List<String> evidenceRefs,
 			List<String> claimRefs
 	) {
 
 		public InterviewQuestion {
+			answerGuide = answerGuide == null ? List.of() : List.copyOf(answerGuide);
+			followUpQuestions = followUpQuestions == null ? List.of() : List.copyOf(followUpQuestions);
 			evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
 			claimRefs = claimRefs == null ? List.of() : List.copyOf(claimRefs);
 		}

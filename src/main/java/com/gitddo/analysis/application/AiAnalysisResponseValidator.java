@@ -3,6 +3,7 @@ package com.gitddo.analysis.application;
 import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
 import com.gitddo.analysis.contract.AnalysisDepth;
+import com.gitddo.analysis.contract.Confidence;
 import com.gitddo.analysis.contract.FindingCategory;
 import org.springframework.stereotype.Component;
 
@@ -142,9 +143,11 @@ public class AiAnalysisResponseValidator {
 		if (finding.category() == null || finding.severity() == null) {
 			throw invalid("finding category 또는 severity가 없습니다.");
 		}
+		requireConfidence(finding.confidence(), "finding");
 		if (isBlank(finding.title()) || isBlank(finding.detail())) {
 			throw invalid("finding 제목 또는 내용이 없습니다.");
 		}
+		validateFilePaths(finding.filePaths());
 		if (!allowedCategories(usedLevels).contains(finding.category())) {
 			throw invalid("사용한 근거 수준으로 해석할 수 없는 항목입니다: " + finding.category());
 		}
@@ -208,6 +211,7 @@ public class AiAnalysisResponseValidator {
 			if (item == null || isBlank(item.text())) {
 				throw invalid(field + " 항목이 비어 있습니다.");
 			}
+			requireConfidence(item.confidence(), field);
 			if (item.evidenceRefs().isEmpty()) {
 				throw invalid(field + "는 Evidence를 최소 하나 인용해야 합니다.");
 			}
@@ -219,6 +223,7 @@ public class AiAnalysisResponseValidator {
 		if (jobAppeal == null || isBlank(jobAppeal.text())) {
 			throw invalid("jobAppeal이 없습니다.");
 		}
+		requireConfidence(jobAppeal.confidence(), "jobAppeal");
 		if (jobAppeal.evidenceRefs().isEmpty()) {
 			throw invalid("jobAppeal은 Evidence를 최소 하나 인용해야 합니다.");
 		}
@@ -233,6 +238,7 @@ public class AiAnalysisResponseValidator {
 		if (statement == null || isBlank(statement.text())) {
 			throw invalid("portfolioStatements 항목이 비어 있습니다.");
 		}
+		requireConfidence(statement.confidence(), "portfolioStatements");
 		if (statement.evidenceRefs().isEmpty() && statement.claimRefs().isEmpty()) {
 			throw invalid("portfolioStatements는 Evidence 또는 UserClaim을 최소 하나 인용해야 합니다.");
 		}
@@ -247,10 +253,15 @@ public class AiAnalysisResponseValidator {
 	) {
 		if (question == null
 				|| isBlank(question.question())
-				|| isBlank(question.intent())
-				|| isBlank(question.answerGuide())) {
+				|| isBlank(question.intent())) {
 			throw invalid("interviewQuestions 항목이 비어 있습니다.");
 		}
+		requireConfidence(question.confidence(), "interviewQuestions");
+		if (question.answerGuide().isEmpty()) {
+			throw invalid("answerGuide가 없습니다.");
+		}
+		requireNonBlankItems(question.answerGuide(), "answerGuide");
+		requireNonBlankItems(question.followUpQuestions(), "followUpQuestions");
 		if (question.evidenceRefs().isEmpty() && question.claimRefs().isEmpty()) {
 			throw invalid("interviewQuestions는 Evidence 또는 UserClaim을 최소 하나 인용해야 합니다.");
 		}
@@ -262,6 +273,28 @@ public class AiAnalysisResponseValidator {
 		for (String evidenceId : evidenceRefs) {
 			if (!EVIDENCE_ID.matcher(evidenceId).matches() || !allEvidenceIds.contains(evidenceId)) {
 				throw invalid("요청에 없는 Evidence ID를 인용했습니다: " + evidenceId);
+			}
+		}
+	}
+
+	private void requireConfidence(Confidence confidence, String field) {
+		if (confidence == null) {
+			throw invalid(field + "에 confidence가 없습니다.");
+		}
+	}
+
+	private void requireNonBlankItems(List<String> values, String field) {
+		for (String value : values) {
+			if (isBlank(value)) {
+				throw invalid(field + "에 빈 항목이 있습니다.");
+			}
+		}
+	}
+
+	private void validateFilePaths(List<String> filePaths) {
+		for (String path : filePaths) {
+			if (isBlank(path) || path.startsWith("/") || path.contains("..")) {
+				throw invalid("filePaths는 저장소 기준 상대 경로여야 합니다: " + path);
 			}
 		}
 	}

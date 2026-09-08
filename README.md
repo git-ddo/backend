@@ -230,6 +230,19 @@ AI 서버를 붙일 때는 `GITDDO_AI_MODE=http`, `GITDDO_AI_BASE_URL`에 로컬
 필요하면 `GITDDO_AI_API_KEY`를 넣고, AI 서버는 같은 값의 `X-Gitddo-Ai-Key` 헤더를 검증합니다.
 요청/응답 계약은 `docs/contracts/`와 `docs/contracts/examples/`를 기준으로 맞춥니다.
 
+응답 계약은 `schemaVersion` `1.1`입니다. 요청과 오류 계약은 `1.0`을 유지하며 각각 따로
+버전을 매깁니다. `1.1`에서 응답에 추가된 항목은 다음과 같습니다.
+
+| 항목 | 위치 | 설명 |
+| --- | --- | --- |
+| `confidence` | finding, coaching 각 항목 | `HIGH`, `MEDIUM`, `LOW` 중 하나. 해석의 확신도 |
+| `followUpQuestions` | interviewQuestion | 꼬리질문 목록. 비어 있어도 됨 |
+| `answerGuide` | interviewQuestion | 문자열 하나에서 단계별 문자열 배열로 변경 |
+| `filePaths` | finding | 저장소 기준 상대 경로. `snapshotSha`와 조합해 파일 permalink를 만듦 |
+
+`filePaths`는 절대 경로와 `..`를 거부합니다. `confidence`가 없으면 리포트를 저장하지
+않고 평가를 `FAILED`로 남깁니다.
+
 ```text
 REQUESTED → COLLECTING → EVIDENCE_READY → ANALYZING → SUCCEEDED
                                       ↘ FAILED
