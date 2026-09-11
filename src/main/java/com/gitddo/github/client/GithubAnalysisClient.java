@@ -1,5 +1,6 @@
 package com.gitddo.github.client;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -16,9 +17,16 @@ import java.util.function.Function;
 public class GithubAnalysisClient {
 
 	private final RestClient githubRestClient;
+	private final GithubApiRetry githubApiRetry;
 
 	public GithubAnalysisClient(RestClient githubRestClient) {
+		this(githubRestClient, GithubApiRetry.noRetry());
+	}
+
+	@Autowired
+	public GithubAnalysisClient(RestClient githubRestClient, GithubApiRetry githubApiRetry) {
 		this.githubRestClient = githubRestClient;
+		this.githubApiRetry = githubApiRetry;
 	}
 
 	public GithubRepositoryPayload fetchRepository(
@@ -215,29 +223,31 @@ public class GithubAnalysisClient {
 			ParameterizedTypeReference<T> responseType,
 			String failureMessage
 	) {
-		try {
-			T body = githubRestClient.get()
-					.uri(uriFunction)
-					.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-					.retrieve()
-					.body(responseType);
-			if (body == null) {
-				throw new GithubApiException(failureMessage + " GitHub 응답이 비어 있습니다.");
+		return githubApiRetry.execute(failureMessage, () -> {
+			try {
+				T body = githubRestClient.get()
+						.uri(uriFunction)
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+						.retrieve()
+						.body(responseType);
+				if (body == null) {
+					throw new GithubApiException(failureMessage + " GitHub 응답이 비어 있습니다.");
+				}
+				if (body instanceof List<?> list) {
+					return (T) List.copyOf(list);
+				}
+				return body;
+			} catch (RestClientResponseException exception) {
+				throw new GithubApiException(
+						exception.getStatusCode(),
+						exception.getResponseHeaders() == null
+								? null
+								: exception.getResponseHeaders()
+										.getFirst("X-RateLimit-Remaining"),
+						failureMessage,
+						exception
+				);
 			}
-			if (body instanceof List<?> list) {
-				return (T) List.copyOf(list);
-			}
-			return body;
-		} catch (RestClientResponseException exception) {
-			throw new GithubApiException(
-					exception.getStatusCode(),
-					exception.getResponseHeaders() == null
-							? null
-							: exception.getResponseHeaders()
-									.getFirst("X-RateLimit-Remaining"),
-					failureMessage,
-					exception
-			);
-		}
+		});
 	}
 }
