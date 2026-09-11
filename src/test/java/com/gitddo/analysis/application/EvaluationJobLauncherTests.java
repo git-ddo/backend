@@ -5,6 +5,7 @@ import com.gitddo.analysis.client.AiAnalysisClientException;
 import com.gitddo.analysis.client.PortfolioReportClient;
 import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
+import com.gitddo.analysis.contract.AnalysisDepth;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import com.gitddo.portfolio.domain.EvaluationArea;
@@ -12,7 +13,6 @@ import com.gitddo.portfolio.domain.EvaluationPurpose;
 import com.gitddo.portfolio.domain.TargetLevel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -46,8 +46,18 @@ class EvaluationJobLauncherTests {
 	@Mock
 	private AiAnalysisResponseValidator aiAnalysisResponseValidator;
 
-	@InjectMocks
-	private EvaluationJobLauncher launcher;
+	private EvaluationJobLauncher launcher(AnalysisDepth maxAnalysisDepth) {
+		return new EvaluationJobLauncher(
+				evaluationService,
+				p0EvidenceCollector,
+				p1EvidenceCollector,
+				p2EvidenceCollector,
+				aiAnalysisRequestAssembler,
+				portfolioReportClient,
+				aiAnalysisResponseValidator,
+				maxAnalysisDepth
+		);
+	}
 
 	@Test
 	void analyzesAfterEvidenceIsReadyAndStoresValidatedReport() {
@@ -65,7 +75,7 @@ class EvaluationJobLauncherTests {
 		when(evaluationService.startAnalysis(analysisId)).thenReturn(request);
 		when(portfolioReportClient.requestReport(request)).thenReturn(report);
 
-		launcher.launch(analysisId, "token");
+		launcher(AnalysisDepth.P2).launch(analysisId, "token");
 
 		verify(evaluationService).completeCollection(analysisId, evidence, request);
 		verify(evaluationService).startAnalysis(analysisId);
@@ -90,7 +100,7 @@ class EvaluationJobLauncherTests {
 		when(portfolioReportClient.requestReport(request))
 				.thenThrow(new AiAnalysisClientException("AI 서버가 503를 반환했습니다."));
 
-		launcher.launch(analysisId, "token");
+		launcher(AnalysisDepth.P2).launch(analysisId, "token");
 
 		verify(evaluationService, never()).succeed(any(), any());
 		verify(evaluationService).fail(eq(analysisId), contains("AiAnalysisClientException"));
@@ -114,10 +124,54 @@ class EvaluationJobLauncherTests {
 		org.mockito.Mockito.doThrow(new InvalidAiAnalysisResponseException("analysisId가 요청과 일치하지 않습니다."))
 				.when(aiAnalysisResponseValidator).validate(request, report);
 
-		launcher.launch(analysisId, "token");
+		launcher(AnalysisDepth.P2).launch(analysisId, "token");
 
 		verify(evaluationService, never()).succeed(any(), any());
 		verify(evaluationService).fail(eq(analysisId), contains("InvalidAiAnalysisResponseException"));
+	}
+
+	@Test
+	void skipsDeeperCollectorsWhenAnalysisDepthIsCapped() {
+		UUID analysisId = UUID.fromString(AnalysisContractFixtures.ANALYSIS_ID);
+		EvaluationInputSnapshot input = inputSnapshot();
+		P0EvidenceSnapshot evidence = evidenceSnapshot();
+		AiAnalysisRequest request = AnalysisContractFixtures.p0Request();
+		AiAnalysisResponse report = AnalysisContractFixtures.validP0Report();
+
+		when(evaluationService.startCollection(analysisId)).thenReturn(input);
+		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
+		when(aiAnalysisRequestAssembler.assemble(analysisId, input, evidence)).thenReturn(request);
+		when(evaluationService.startAnalysis(analysisId)).thenReturn(request);
+		when(portfolioReportClient.requestReport(request)).thenReturn(report);
+
+		launcher(AnalysisDepth.P0).launch(analysisId, "token");
+
+		verify(p1EvidenceCollector, never()).collect(any(), any(), any());
+		verify(p2EvidenceCollector, never()).collect(any(), any());
+		verify(evaluationService).completeCollection(analysisId, evidence, request);
+		verify(evaluationService).succeed(analysisId, report);
+	}
+
+	@Test
+	void stopsAtP1WhenAnalysisDepthIsCappedToP1() {
+		UUID analysisId = UUID.fromString(AnalysisContractFixtures.ANALYSIS_ID);
+		EvaluationInputSnapshot input = inputSnapshot();
+		P0EvidenceSnapshot evidence = evidenceSnapshot();
+		AiAnalysisRequest request = AnalysisContractFixtures.p0Request();
+		AiAnalysisResponse report = AnalysisContractFixtures.validP0Report();
+
+		when(evaluationService.startCollection(analysisId)).thenReturn(input);
+		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
+		when(p1EvidenceCollector.collect("token", input, evidence)).thenReturn(evidence);
+		when(aiAnalysisRequestAssembler.assemble(analysisId, input, evidence)).thenReturn(request);
+		when(evaluationService.startAnalysis(analysisId)).thenReturn(request);
+		when(portfolioReportClient.requestReport(request)).thenReturn(report);
+
+		launcher(AnalysisDepth.P1).launch(analysisId, "token");
+
+		verify(p1EvidenceCollector).collect("token", input, evidence);
+		verify(p2EvidenceCollector, never()).collect(any(), any());
+		verify(evaluationService).succeed(analysisId, report);
 	}
 
 	private EvaluationInputSnapshot inputSnapshot() {

@@ -100,6 +100,7 @@ docker compose down
 | `SESSION_COOKIE_SECURE` | 로컬 `false`, HTTPS 운영 환경 `true` |
 | `SPRINGDOC_ENABLED` | 로컬 `true`, 운영 환경에서는 필요에 따라 `false` |
 | `GITDDO_AI_MODE` | `mock` (실제 AI 서버 없이 평가 흐름 검증). 연동 시 `http` |
+| `GITDDO_AI_MAX_ANALYSIS_DEPTH` | `P2`. `P0`이나 `P1`로 낮추면 그 위 단계는 수집하지 않음 |
 | `GITDDO_AI_BASE_URL` | `http` 모드에서 필수. AI 서버 origin (예: `http://localhost:8000`) |
 | `GITDDO_AI_REPORTS_PATH` | `/internal/v1/portfolio-reports` |
 | `GITDDO_AI_API_KEY` | 비어 있으면 인증 헤더를 보내지 않음 |
@@ -247,6 +248,10 @@ AI 서버를 붙일 때는 `GITDDO_AI_MODE=http`, `GITDDO_AI_BASE_URL`에 로컬
 REQUESTED → COLLECTING → EVIDENCE_READY → ANALYZING → SUCCEEDED
                                       ↘ FAILED
 ```
+
+요청하는 분석 깊이는 실제로 수집한 근거의 최대 단계로 정해집니다. 기본값에서는 P2까지
+수집하므로 P2로 요청합니다. `GITDDO_AI_MAX_ANALYSIS_DEPTH=P0`으로 낮추면 P1·P2 수집을
+건너뛰고 P0으로만 요청하므로, AI 서버의 특정 단계만 따로 확인할 때 사용합니다.
 
 ## 데이터베이스 관리
 

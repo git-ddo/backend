@@ -3,8 +3,10 @@ package com.gitddo.analysis.application;
 import com.gitddo.analysis.client.PortfolioReportClient;
 import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
+import com.gitddo.analysis.contract.AnalysisDepth;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +24,7 @@ public class EvaluationJobLauncher {
 	private final AiAnalysisRequestAssembler aiAnalysisRequestAssembler;
 	private final PortfolioReportClient portfolioReportClient;
 	private final AiAnalysisResponseValidator aiAnalysisResponseValidator;
+	private final AnalysisDepth maxAnalysisDepth;
 
 	public EvaluationJobLauncher(
 			EvaluationService evaluationService,
@@ -30,7 +33,8 @@ public class EvaluationJobLauncher {
 			P2EvidenceCollector p2EvidenceCollector,
 			AiAnalysisRequestAssembler aiAnalysisRequestAssembler,
 			PortfolioReportClient portfolioReportClient,
-			AiAnalysisResponseValidator aiAnalysisResponseValidator
+			AiAnalysisResponseValidator aiAnalysisResponseValidator,
+			@Value("${gitddo.ai.max-analysis-depth:P2}") AnalysisDepth maxAnalysisDepth
 	) {
 		this.evaluationService = evaluationService;
 		this.p0EvidenceCollector = p0EvidenceCollector;
@@ -39,6 +43,7 @@ public class EvaluationJobLauncher {
 		this.aiAnalysisRequestAssembler = aiAnalysisRequestAssembler;
 		this.portfolioReportClient = portfolioReportClient;
 		this.aiAnalysisResponseValidator = aiAnalysisResponseValidator;
+		this.maxAnalysisDepth = maxAnalysisDepth == null ? AnalysisDepth.P2 : maxAnalysisDepth;
 	}
 
 	@Async("evaluationExecutor")
@@ -46,15 +51,7 @@ public class EvaluationJobLauncher {
 		try {
 			EvaluationInputSnapshot inputSnapshot =
 					evaluationService.startCollection(analysisId);
-			P0EvidenceSnapshot evidenceSnapshot =
-					p2EvidenceCollector.collect(
-							githubAccessToken,
-							p1EvidenceCollector.collect(
-									githubAccessToken,
-									inputSnapshot,
-									p0EvidenceCollector.collect(githubAccessToken, inputSnapshot)
-							)
-					);
+			P0EvidenceSnapshot evidenceSnapshot = collect(githubAccessToken, inputSnapshot);
 			AiAnalysisRequest aiRequest = aiAnalysisRequestAssembler.assemble(
 					analysisId,
 					inputSnapshot,
@@ -68,6 +65,38 @@ public class EvaluationJobLauncher {
 		} catch (Exception exception) {
 			evaluationService.fail(analysisId, safeFailureReason(exception));
 		}
+	}
+
+	private P0EvidenceSnapshot collect(
+			String githubAccessToken,
+			EvaluationInputSnapshot inputSnapshot
+	) {
+		P0EvidenceSnapshot evidenceSnapshot =
+				p0EvidenceCollector.collect(githubAccessToken, inputSnapshot);
+		if (!collects(AnalysisDepth.P1)) {
+			return evidenceSnapshot;
+		}
+		evidenceSnapshot = p1EvidenceCollector.collect(
+				githubAccessToken,
+				inputSnapshot,
+				evidenceSnapshot
+		);
+		if (!collects(AnalysisDepth.P2)) {
+			return evidenceSnapshot;
+		}
+		return p2EvidenceCollector.collect(githubAccessToken, evidenceSnapshot);
+	}
+
+	private boolean collects(AnalysisDepth depth) {
+		return rank(depth) <= rank(maxAnalysisDepth);
+	}
+
+	private int rank(AnalysisDepth depth) {
+		return switch (depth) {
+			case P0 -> 0;
+			case P1 -> 1;
+			case P2 -> 2;
+		};
 	}
 
 	private String safeFailureReason(Exception exception) {
