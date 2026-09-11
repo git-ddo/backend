@@ -47,6 +47,11 @@ management:
       show-details: always
 
 gitddo:
+  github:
+    connect-timeout: ${GITDDO_GITHUB_CONNECT_TIMEOUT:5s}
+    read-timeout: ${GITDDO_GITHUB_READ_TIMEOUT:30s}
+    max-attempts: ${GITDDO_GITHUB_MAX_ATTEMPTS:3}
+    retry-delay: ${GITDDO_GITHUB_RETRY_DELAY:1s}
   ai:
     mode: ${GITDDO_AI_MODE:mock}
     max-analysis-depth: ${GITDDO_AI_MAX_ANALYSIS_DEPTH:P2}

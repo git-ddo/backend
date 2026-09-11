@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,15 +21,15 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class GithubAnalysisClientTests {
 
 	private MockRestServiceServer server;
+	private RestClient restClient;
 	private GithubAnalysisClient client;
 
 	@BeforeEach
 	void setUp() {
 		RestClient.Builder builder = RestClient.builder();
 		server = MockRestServiceServer.bindTo(builder).build();
-		client = new GithubAnalysisClient(
-				builder.baseUrl("https://api.github.com").build()
-		);
+		restClient = builder.baseUrl("https://api.github.com").build();
+		client = new GithubAnalysisClient(restClient);
 	}
 
 	@Test
@@ -179,7 +180,28 @@ class GithubAnalysisClientTests {
 	}
 
 	@Test
-	void preservesGithubStatusAndRateLimitOnFailure() {
+	void retriesRetryableGithubFailuresThenSucceeds() {
+		GithubAnalysisClient retryingClient = new GithubAnalysisClient(
+				restClient,
+				new GithubApiRetry(3, Duration.ZERO)
+		);
+		server.expect(requestTo("https://api.github.com/repos/git-ddo/backend/languages"))
+				.andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE)
+						.header("X-RateLimit-Remaining", "40"));
+		server.expect(requestTo("https://api.github.com/repos/git-ddo/backend/languages"))
+				.andRespond(withSuccess("""
+						{
+						  "Java": 12000
+						}
+						""", MediaType.APPLICATION_JSON));
+
+		assertThat(retryingClient.fetchLanguages("test-token", "git-ddo", "backend"))
+				.containsEntry("Java", 12000L);
+		server.verify();
+	}
+
+	@Test
+	void doesNotRetryClientErrors() {
 		server.expect(requestTo("https://api.github.com/repos/git-ddo/backend/languages"))
 				.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
 				.andRespond(withStatus(HttpStatus.FORBIDDEN)

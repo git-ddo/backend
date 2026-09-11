@@ -6,6 +6,8 @@ import com.gitddo.analysis.contract.AiAnalysisResponse;
 import com.gitddo.analysis.contract.AnalysisDepth;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -15,6 +17,7 @@ import java.util.UUID;
 @Component
 public class EvaluationJobLauncher {
 
+	private static final Logger log = LoggerFactory.getLogger(EvaluationJobLauncher.class);
 	private static final int MAX_FAILURE_REASON_LENGTH = 1_000;
 
 	private final EvaluationService evaluationService;
@@ -48,9 +51,11 @@ public class EvaluationJobLauncher {
 
 	@Async("evaluationExecutor")
 	public void launch(UUID analysisId, String githubAccessToken) {
+		log.info("evaluation started analysisId={}", analysisId);
 		try {
 			EvaluationInputSnapshot inputSnapshot =
 					evaluationService.startCollection(analysisId);
+			log.info("evaluation collecting evidence analysisId={} maxDepth={}", analysisId, maxAnalysisDepth);
 			P0EvidenceSnapshot evidenceSnapshot = collect(githubAccessToken, inputSnapshot);
 			AiAnalysisRequest aiRequest = aiAnalysisRequestAssembler.assemble(
 					analysisId,
@@ -58,12 +63,16 @@ public class EvaluationJobLauncher {
 					evidenceSnapshot
 			);
 			evaluationService.completeCollection(analysisId, evidenceSnapshot, aiRequest);
+			log.info("evaluation analyzing analysisId={}", analysisId);
 			AiAnalysisRequest analysisRequest = evaluationService.startAnalysis(analysisId);
 			AiAnalysisResponse report = portfolioReportClient.requestReport(analysisRequest);
 			aiAnalysisResponseValidator.validate(analysisRequest, report);
 			evaluationService.succeed(analysisId, report);
+			log.info("evaluation succeeded analysisId={}", analysisId);
 		} catch (Exception exception) {
-			evaluationService.fail(analysisId, safeFailureReason(exception));
+			String reason = safeFailureReason(exception);
+			log.warn("evaluation failed analysisId={} reason={}", analysisId, reason, exception);
+			evaluationService.fail(analysisId, reason);
 		}
 	}
 

@@ -5,6 +5,8 @@ import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,6 +22,8 @@ import java.time.Duration;
 @Component
 @ConditionalOnProperty(name = "gitddo.ai.mode", havingValue = "http")
 public class HttpPortfolioReportClient implements PortfolioReportClient {
+
+	private static final Logger log = LoggerFactory.getLogger(HttpPortfolioReportClient.class);
 
 	private final RestClient aiRestClient;
 	private final ObjectMapper objectMapper;
@@ -60,6 +64,12 @@ public class HttpPortfolioReportClient implements PortfolioReportClient {
 				if (!shouldRetry(exception) || attempt == maxAttempts) {
 					throw exception;
 				}
+				log.warn(
+						"AI report request failed (attempt {}/{}): {}",
+						attempt,
+						maxAttempts,
+						exception.getMessage()
+				);
 				sleep(retryDelay);
 			}
 		}
