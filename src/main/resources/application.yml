@@ -49,6 +49,7 @@ management:
 gitddo:
   ai:
     mode: ${GITDDO_AI_MODE:mock}
+    max-analysis-depth: ${GITDDO_AI_MAX_ANALYSIS_DEPTH:P2}
     base-url: ${GITDDO_AI_BASE_URL:}
     reports-path: ${GITDDO_AI_REPORTS_PATH:/internal/v1/portfolio-reports}
     api-key: ${GITDDO_AI_API_KEY:}
