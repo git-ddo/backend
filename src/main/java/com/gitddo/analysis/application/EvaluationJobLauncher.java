@@ -4,6 +4,7 @@ import com.gitddo.analysis.client.PortfolioReportClient;
 import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
 import com.gitddo.analysis.contract.AnalysisDepth;
+import com.gitddo.analysis.domain.EvaluationFailureCode;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import org.slf4j.Logger;
@@ -12,7 +13,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class EvaluationJobLauncher {
@@ -27,7 +31,9 @@ public class EvaluationJobLauncher {
 	private final AiAnalysisRequestAssembler aiAnalysisRequestAssembler;
 	private final PortfolioReportClient portfolioReportClient;
 	private final AiAnalysisResponseValidator aiAnalysisResponseValidator;
+	private final EvaluationFailureClassifier failureClassifier;
 	private final AnalysisDepth maxAnalysisDepth;
+	private final Set<UUID> runningAnalysisIds = ConcurrentHashMap.newKeySet();
 
 	public EvaluationJobLauncher(
 			EvaluationService evaluationService,
@@ -37,6 +43,7 @@ public class EvaluationJobLauncher {
 			AiAnalysisRequestAssembler aiAnalysisRequestAssembler,
 			PortfolioReportClient portfolioReportClient,
 			AiAnalysisResponseValidator aiAnalysisResponseValidator,
+			EvaluationFailureClassifier failureClassifier,
 			@Value("${gitddo.ai.max-analysis-depth:P2}") AnalysisDepth maxAnalysisDepth
 	) {
 		this.evaluationService = evaluationService;
@@ -46,15 +53,33 @@ public class EvaluationJobLauncher {
 		this.aiAnalysisRequestAssembler = aiAnalysisRequestAssembler;
 		this.portfolioReportClient = portfolioReportClient;
 		this.aiAnalysisResponseValidator = aiAnalysisResponseValidator;
+		this.failureClassifier = failureClassifier;
 		this.maxAnalysisDepth = maxAnalysisDepth == null ? AnalysisDepth.P2 : maxAnalysisDepth;
 	}
 
 	@Async("evaluationExecutor")
 	public void launch(UUID analysisId, String githubAccessToken) {
+		if (!runningAnalysisIds.add(analysisId)) {
+			log.info("evaluation already running analysisId={}", analysisId);
+			return;
+		}
+		try {
+			run(analysisId, githubAccessToken);
+		} finally {
+			runningAnalysisIds.remove(analysisId);
+		}
+	}
+
+	private void run(UUID analysisId, String githubAccessToken) {
 		log.info("evaluation started analysisId={}", analysisId);
 		try {
-			EvaluationInputSnapshot inputSnapshot =
-					evaluationService.startCollection(analysisId);
+			Optional<EvaluationInputSnapshot> claimed =
+					evaluationService.tryStartCollection(analysisId);
+			if (claimed.isEmpty()) {
+				log.info("evaluation already claimed analysisId={}", analysisId);
+				return;
+			}
+			EvaluationInputSnapshot inputSnapshot = claimed.get();
 			log.info("evaluation collecting evidence analysisId={} maxDepth={}", analysisId, maxAnalysisDepth);
 			P0EvidenceSnapshot evidenceSnapshot = collect(githubAccessToken, inputSnapshot);
 			AiAnalysisRequest aiRequest = aiAnalysisRequestAssembler.assemble(
@@ -70,9 +95,10 @@ public class EvaluationJobLauncher {
 			evaluationService.succeed(analysisId, report);
 			log.info("evaluation succeeded analysisId={}", analysisId);
 		} catch (Exception exception) {
+			EvaluationFailureCode code = failureClassifier.classify(exception);
 			String reason = safeFailureReason(exception);
-			log.warn("evaluation failed analysisId={} reason={}", analysisId, reason, exception);
-			evaluationService.fail(analysisId, reason);
+			log.warn("evaluation failed analysisId={} code={} reason={}", analysisId, code, reason, exception);
+			evaluationService.fail(analysisId, code, reason);
 		}
 	}
 

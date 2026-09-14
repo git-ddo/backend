@@ -6,6 +6,7 @@ import com.gitddo.analysis.client.PortfolioReportClient;
 import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
 import com.gitddo.analysis.contract.AnalysisDepth;
+import com.gitddo.analysis.domain.EvaluationFailureCode;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import com.gitddo.portfolio.domain.EvaluationArea;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -46,6 +48,8 @@ class EvaluationJobLauncherTests {
 	@Mock
 	private AiAnalysisResponseValidator aiAnalysisResponseValidator;
 
+	private final EvaluationFailureClassifier failureClassifier = new EvaluationFailureClassifier();
+
 	private EvaluationJobLauncher launcher(AnalysisDepth maxAnalysisDepth) {
 		return new EvaluationJobLauncher(
 				evaluationService,
@@ -55,6 +59,7 @@ class EvaluationJobLauncherTests {
 				aiAnalysisRequestAssembler,
 				portfolioReportClient,
 				aiAnalysisResponseValidator,
+				failureClassifier,
 				maxAnalysisDepth
 		);
 	}
@@ -67,7 +72,7 @@ class EvaluationJobLauncherTests {
 		AiAnalysisRequest request = AnalysisContractFixtures.p0Request();
 		AiAnalysisResponse report = AnalysisContractFixtures.validP0Report();
 
-		when(evaluationService.startCollection(analysisId)).thenReturn(input);
+		when(evaluationService.tryStartCollection(analysisId)).thenReturn(Optional.of(input));
 		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
 		when(p1EvidenceCollector.collect("token", input, evidence)).thenReturn(evidence);
 		when(p2EvidenceCollector.collect("token", evidence)).thenReturn(evidence);
@@ -81,7 +86,44 @@ class EvaluationJobLauncherTests {
 		verify(evaluationService).startAnalysis(analysisId);
 		verify(aiAnalysisResponseValidator).validate(request, report);
 		verify(evaluationService).succeed(analysisId, report);
-		verify(evaluationService, never()).fail(any(), any());
+		verify(evaluationService, never()).fail(any(), any(), any());
+	}
+
+	@Test
+	void skipsWhenCollectionWasAlreadyClaimed() {
+		UUID analysisId = UUID.fromString(AnalysisContractFixtures.ANALYSIS_ID);
+		when(evaluationService.tryStartCollection(analysisId)).thenReturn(Optional.empty());
+
+		launcher(AnalysisDepth.P2).launch(analysisId, "token");
+
+		verify(p0EvidenceCollector, never()).collect(any(), any());
+		verify(evaluationService, never()).fail(any(), any(), any());
+		verify(evaluationService, never()).succeed(any(), any());
+	}
+
+	@Test
+	void skipsOverlappingLaunchForTheSameAnalysisId() throws Exception {
+		UUID analysisId = UUID.fromString(AnalysisContractFixtures.ANALYSIS_ID);
+		java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(1);
+		java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+		when(evaluationService.tryStartCollection(analysisId)).thenAnswer(invocation -> {
+			started.countDown();
+			if (!release.await(2, java.util.concurrent.TimeUnit.SECONDS)) {
+				throw new IllegalStateException("release timeout");
+			}
+			return Optional.empty();
+		});
+
+		EvaluationJobLauncher jobLauncher = launcher(AnalysisDepth.P2);
+		Thread first = new Thread(() -> jobLauncher.launch(analysisId, "token"));
+		first.start();
+		org.assertj.core.api.Assertions.assertThat(started.await(2, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+		jobLauncher.launch(analysisId, "token");
+		release.countDown();
+		first.join(2_000);
+
+		verify(evaluationService, org.mockito.Mockito.times(1)).tryStartCollection(analysisId);
+		verify(evaluationService, never()).fail(any(), any(), any());
 	}
 
 	@Test
@@ -91,7 +133,7 @@ class EvaluationJobLauncherTests {
 		P0EvidenceSnapshot evidence = evidenceSnapshot();
 		AiAnalysisRequest request = AnalysisContractFixtures.p0Request();
 
-		when(evaluationService.startCollection(analysisId)).thenReturn(input);
+		when(evaluationService.tryStartCollection(analysisId)).thenReturn(Optional.of(input));
 		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
 		when(p1EvidenceCollector.collect("token", input, evidence)).thenReturn(evidence);
 		when(p2EvidenceCollector.collect("token", evidence)).thenReturn(evidence);
@@ -103,7 +145,11 @@ class EvaluationJobLauncherTests {
 		launcher(AnalysisDepth.P2).launch(analysisId, "token");
 
 		verify(evaluationService, never()).succeed(any(), any());
-		verify(evaluationService).fail(eq(analysisId), contains("AiAnalysisClientException"));
+		verify(evaluationService).fail(
+				eq(analysisId),
+				eq(EvaluationFailureCode.AI_SERVER_ERROR),
+				contains("AiAnalysisClientException")
+		);
 	}
 
 	@Test
@@ -114,7 +160,7 @@ class EvaluationJobLauncherTests {
 		AiAnalysisRequest request = AnalysisContractFixtures.p0Request();
 		AiAnalysisResponse report = AnalysisContractFixtures.validP0Report();
 
-		when(evaluationService.startCollection(analysisId)).thenReturn(input);
+		when(evaluationService.tryStartCollection(analysisId)).thenReturn(Optional.of(input));
 		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
 		when(p1EvidenceCollector.collect("token", input, evidence)).thenReturn(evidence);
 		when(p2EvidenceCollector.collect("token", evidence)).thenReturn(evidence);
@@ -127,7 +173,11 @@ class EvaluationJobLauncherTests {
 		launcher(AnalysisDepth.P2).launch(analysisId, "token");
 
 		verify(evaluationService, never()).succeed(any(), any());
-		verify(evaluationService).fail(eq(analysisId), contains("InvalidAiAnalysisResponseException"));
+		verify(evaluationService).fail(
+				eq(analysisId),
+				eq(EvaluationFailureCode.AI_INVALID_RESPONSE),
+				contains("InvalidAiAnalysisResponseException")
+		);
 	}
 
 	@Test
@@ -138,7 +188,7 @@ class EvaluationJobLauncherTests {
 		AiAnalysisRequest request = AnalysisContractFixtures.p0Request();
 		AiAnalysisResponse report = AnalysisContractFixtures.validP0Report();
 
-		when(evaluationService.startCollection(analysisId)).thenReturn(input);
+		when(evaluationService.tryStartCollection(analysisId)).thenReturn(Optional.of(input));
 		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
 		when(aiAnalysisRequestAssembler.assemble(analysisId, input, evidence)).thenReturn(request);
 		when(evaluationService.startAnalysis(analysisId)).thenReturn(request);
@@ -160,7 +210,7 @@ class EvaluationJobLauncherTests {
 		AiAnalysisRequest request = AnalysisContractFixtures.p0Request();
 		AiAnalysisResponse report = AnalysisContractFixtures.validP0Report();
 
-		when(evaluationService.startCollection(analysisId)).thenReturn(input);
+		when(evaluationService.tryStartCollection(analysisId)).thenReturn(Optional.of(input));
 		when(p0EvidenceCollector.collect("token", input)).thenReturn(evidence);
 		when(p1EvidenceCollector.collect("token", input, evidence)).thenReturn(evidence);
 		when(aiAnalysisRequestAssembler.assemble(analysisId, input, evidence)).thenReturn(request);

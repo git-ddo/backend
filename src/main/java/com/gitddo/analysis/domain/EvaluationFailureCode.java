@@ -1,0 +1,12 @@
+package com.gitddo.analysis.domain;
+
+public enum EvaluationFailureCode {
+	GITHUB_RATE_LIMIT,
+	GITHUB_API_ERROR,
+	AI_INVALID_RESPONSE,
+	AI_RATE_LIMITED,
+	AI_TIMEOUT,
+	AI_SERVER_ERROR,
+	EVALUATION_INTERRUPTED,
+	EVALUATION_FAILED
+}

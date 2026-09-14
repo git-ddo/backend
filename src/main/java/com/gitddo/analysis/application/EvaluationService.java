@@ -1,8 +1,10 @@
 package com.gitddo.analysis.application;
 
+import com.gitddo.analysis.domain.EvaluationFailureCode;
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.EvaluationRun;
 import com.gitddo.analysis.domain.EvaluationRunRepository;
+import com.gitddo.analysis.domain.EvaluationStatus;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
@@ -12,6 +14,10 @@ import com.gitddo.portfolio.domain.PortfolioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -53,10 +59,20 @@ public class EvaluationService {
 
 	@Transactional
 	public EvaluationInputSnapshot startCollection(UUID analysisId) {
-		EvaluationRun run = evaluationRunRepository.findByAnalysisId(analysisId)
+		return tryStartCollection(analysisId).orElseThrow(() ->
+				new IllegalStateException("평가 상태가 REQUESTED일 때만 수행할 수 있습니다.")
+		);
+	}
+
+	@Transactional
+	public Optional<EvaluationInputSnapshot> tryStartCollection(UUID analysisId) {
+		EvaluationRun run = evaluationRunRepository.findByAnalysisIdForUpdate(analysisId)
 				.orElseThrow(EvaluationNotFoundException::new);
+		if (run.getStatus() != EvaluationStatus.REQUESTED) {
+			return Optional.empty();
+		}
 		run.startCollection();
-		return run.getInputSnapshot();
+		return Optional.of(run.getInputSnapshot());
 	}
 
 	@Transactional
@@ -86,10 +102,25 @@ public class EvaluationService {
 	}
 
 	@Transactional
-	public void fail(UUID analysisId, String failureReason) {
+	public void fail(UUID analysisId, EvaluationFailureCode failureCode, String failureReason) {
 		EvaluationRun run = evaluationRunRepository.findByAnalysisId(analysisId)
 				.orElseThrow(EvaluationNotFoundException::new);
-		run.fail(failureReason);
+		run.fail(failureCode, failureReason);
+	}
+
+	@Transactional
+	public List<EvaluationRun> expireStale(
+			Collection<EvaluationStatus> statuses,
+			Instant deadline
+	) {
+		List<EvaluationRun> stale = evaluationRunRepository.findStaleInProgress(statuses, deadline);
+		for (EvaluationRun run : stale) {
+			run.fail(
+					EvaluationFailureCode.EVALUATION_INTERRUPTED,
+					"평가가 제한 시간 안에 끝나지 않아 중단했습니다."
+			);
+		}
+		return stale;
 	}
 
 	@Transactional(readOnly = true)

@@ -99,6 +99,8 @@ docker compose down
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App에서 발급 |
 | `SESSION_COOKIE_SECURE` | 로컬 `false`, HTTPS 운영 환경 `true` |
 | `SPRINGDOC_ENABLED` | 로컬 `true`, 운영 환경에서는 필요에 따라 `false` |
+| `GITDDO_EVALUATION_STALE_AFTER` | `20m`. 이 시간 동안 `SUCCEEDED`/`FAILED`가 안 된 평가는 중단된 것으로 보고 `FAILED` |
+| `GITDDO_EVALUATION_STALE_CHECK_INTERVAL` | `1m`. 만료 검사 주기 |
 | `GITDDO_AI_MODE` | `mock` (실제 AI 서버 없이 평가 흐름 검증). 연동 시 `http` |
 | `GITDDO_AI_MAX_ANALYSIS_DEPTH` | `P2`. `P0`이나 `P1`로 낮추면 그 위 단계는 수집하지 않음 |
 | `GITDDO_AI_BASE_URL` | `http` 모드에서 필수. AI 서버 origin (예: `http://localhost:8000`) |
@@ -248,6 +250,17 @@ AI 서버를 붙일 때는 `GITDDO_AI_MODE=http`, `GITDDO_AI_BASE_URL`에 로컬
 REQUESTED → COLLECTING → EVIDENCE_READY → ANALYZING → SUCCEEDED
                                       ↘ FAILED
 ```
+
+평가는 인메모리 `@Async` 풀에서 돌아가므로 서버가 재시작되면 진행 중 상태가 DB에
+남을 수 있습니다. 기동 시와 1분마다, `startedAt`(없으면 `requestedAt`)이
+`GITDDO_EVALUATION_STALE_AFTER`(기본 20분)보다 오래된 진행 중 평가는
+`EVALUATION_INTERRUPTED`로 `FAILED` 처리합니다. GitHub 토큰을 저장하지 않으므로
+수집 중인 작업은 재개하지 않습니다. 같은 `analysisId`로 `launch`가 두 번 불려도
+이미 시작된 평가는 다시 돌지 않고, 살아 있는 작업을 `FAILED`로 바꾸지 않습니다.
+
+실패 응답에는 `failureReason`과 함께 `failureCode`가 있습니다.
+`GITHUB_RATE_LIMIT`, `GITHUB_API_ERROR`, `AI_INVALID_RESPONSE`, `AI_RATE_LIMITED`,
+`AI_TIMEOUT`, `AI_SERVER_ERROR`, `EVALUATION_INTERRUPTED`, `EVALUATION_FAILED`.
 
 요청하는 분석 깊이는 실제로 수집한 근거의 최대 단계로 정해집니다. 기본값에서는 P2까지
 수집하므로 P2로 요청합니다. `GITDDO_AI_MAX_ANALYSIS_DEPTH=P0`으로 낮추면 P1·P2 수집을
