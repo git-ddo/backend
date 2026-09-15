@@ -235,7 +235,8 @@ public class MockPortfolioReportClient implements PortfolioReportClient {
 		return switch (factKey) {
 			case "README", "API_DOCUMENTATION" -> FindingCategory.DOCUMENTATION;
 			case "BUILD_MANIFEST", "LANGUAGE_BREAKDOWN",
-					"CI_CONFIGURATION", "CONTAINER_CONFIGURATION" -> FindingCategory.STACK;
+					"CI_CONFIGURATION", "CONTAINER_CONFIGURATION",
+					"TECHNOLOGY_DETECTED" -> FindingCategory.STACK;
 			case "PROJECT_STRUCTURE", "FILE_TREE_SUMMARY", "REPOSITORY_METADATA" -> FindingCategory.STRUCTURE;
 			case "COMMIT_SUMMARY", "PULL_REQUEST", "CHANGED_FILES", "ACTIVITY_SUMMARY" -> FindingCategory.ACTIVITY;
 			case "CODE_SNIPPET" -> FindingCategory.CODE_QUALITY;

@@ -22,6 +22,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,13 +45,16 @@ public class P0EvidenceCollector {
 
 	private final GithubAnalysisClient githubAnalysisClient;
 	private final P0FileSelectionPolicy fileSelectionPolicy;
+	private final P0TechnologyDetector technologyDetector;
 
 	public P0EvidenceCollector(
 			GithubAnalysisClient githubAnalysisClient,
-			P0FileSelectionPolicy fileSelectionPolicy
+			P0FileSelectionPolicy fileSelectionPolicy,
+			P0TechnologyDetector technologyDetector
 	) {
 		this.githubAnalysisClient = githubAnalysisClient;
 		this.fileSelectionPolicy = fileSelectionPolicy;
+		this.technologyDetector = technologyDetector;
 	}
 
 	public P0EvidenceSnapshot collect(
@@ -202,6 +206,7 @@ public class P0EvidenceCollector {
 				candidates,
 				warnings
 		);
+		appendDetectedTechnologies(repositoryOrder, repositoryId, snapshotSha, candidates);
 		candidates.add(candidate(
 				repositoryOrder,
 				EvidenceType.BACKEND_DERIVED,
@@ -256,6 +261,40 @@ public class P0EvidenceCollector {
 						candidates,
 						warnings
 				));
+	}
+
+	private void appendDetectedTechnologies(
+			int repositoryOrder,
+			String repositoryId,
+			String snapshotSha,
+			List<EvidenceCandidate> candidates
+	) {
+		Map<String, EvidenceCandidate> sourceByTechnology = new LinkedHashMap<>();
+		for (EvidenceCandidate candidate : List.copyOf(candidates)) {
+			if (!technologyDetector.isSourceKind(candidate.kind())) {
+				continue;
+			}
+			for (String technology : technologyDetector.detect(
+					candidate.kind(),
+					candidate.path(),
+					candidate.content()
+			)) {
+				sourceByTechnology.putIfAbsent(technology, candidate);
+			}
+		}
+		for (Map.Entry<String, EvidenceCandidate> entry : sourceByTechnology.entrySet()) {
+			candidates.add(candidate(
+					repositoryOrder,
+					EvidenceType.BACKEND_DERIVED,
+					EvidenceKind.TECHNOLOGY_DETECTED,
+					repositoryId,
+					snapshotSha,
+					null,
+					entry.getKey(),
+					false,
+					entry.getValue()
+			));
+		}
 	}
 
 	private void collectFile(
