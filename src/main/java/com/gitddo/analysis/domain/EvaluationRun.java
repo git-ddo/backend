@@ -64,6 +64,10 @@ public class EvaluationRun {
 	@Column(name = "evaluator_version", length = 100)
 	private String evaluatorVersion;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "failure_code", length = 40)
+	private EvaluationFailureCode failureCode;
+
 	@Column(name = "failure_reason", columnDefinition = "TEXT")
 	private String failureReason;
 
@@ -126,6 +130,9 @@ public class EvaluationRun {
 	}
 
 	public void succeed(AiAnalysisResponse result) {
+		if (status == EvaluationStatus.SUCCEEDED || status == EvaluationStatus.FAILED) {
+			return;
+		}
 		requireStatus(EvaluationStatus.ANALYZING);
 		if (result == null) {
 			throw new IllegalArgumentException("평가 결과는 필수입니다.");
@@ -135,11 +142,14 @@ public class EvaluationRun {
 		this.completedAt = Instant.now();
 	}
 
-	public void fail(String failureReason) {
+	public void fail(EvaluationFailureCode failureCode, String failureReason) {
 		if (status == EvaluationStatus.SUCCEEDED || status == EvaluationStatus.FAILED) {
-			throw new IllegalStateException("완료된 평가는 실패 상태로 변경할 수 없습니다.");
+			return;
 		}
 		this.status = EvaluationStatus.FAILED;
+		this.failureCode = failureCode == null
+				? EvaluationFailureCode.EVALUATION_FAILED
+				: failureCode;
 		this.failureReason = failureReason == null || failureReason.isBlank()
 				? "평가 처리에 실패했습니다."
 				: failureReason;
@@ -188,6 +198,10 @@ public class EvaluationRun {
 
 	public AiAnalysisResponse getResult() {
 		return result;
+	}
+
+	public EvaluationFailureCode getFailureCode() {
+		return failureCode;
 	}
 
 	public String getFailureReason() {

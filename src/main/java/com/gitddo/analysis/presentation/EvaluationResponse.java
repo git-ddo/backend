@@ -2,6 +2,7 @@ package com.gitddo.analysis.presentation;
 
 import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
+import com.gitddo.analysis.domain.EvaluationFailureCode;
 import com.gitddo.analysis.domain.EvaluationRun;
 import com.gitddo.analysis.domain.EvaluationStatus;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
@@ -15,6 +16,7 @@ public record EvaluationResponse(
 		P0EvidenceSnapshot evidenceSnapshot,
 		AiAnalysisRequest aiRequest,
 		AiAnalysisResponse report,
+		EvaluationFailureCode failureCode,
 		String failureReason,
 		Instant requestedAt,
 		Instant startedAt,
@@ -28,6 +30,7 @@ public record EvaluationResponse(
 				run.getEvidenceSnapshot(),
 				run.getAiRequest(),
 				run.getResult(),
+				run.getFailureCode(),
 				run.getFailureReason(),
 				run.getRequestedAt(),
 				run.getStartedAt(),
