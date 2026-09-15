@@ -16,7 +16,7 @@ public record P0EvidenceSnapshot(
 ) {
 
 	public static final int CURRENT_SCHEMA_VERSION = 1;
-	public static final String CURRENT_EXTRACTOR_VERSION = "p0-collector-1.0";
+	public static final String CURRENT_EXTRACTOR_VERSION = "p0-collector-1.1";
 	public static final String P1_EXTRACTOR_VERSION = "p0-p1-collector-1.0";
 	public static final String P2_EXTRACTOR_VERSION = "p0-p1-p2-collector-1.0";
 

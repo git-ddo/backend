@@ -2,6 +2,7 @@ package com.gitddo.analysis.application;
 
 import com.gitddo.analysis.domain.EvaluationInputSnapshot;
 import com.gitddo.analysis.domain.EvidenceKind;
+import com.gitddo.analysis.domain.EvidenceType;
 import com.gitddo.analysis.domain.P0EvidenceSnapshot;
 import com.gitddo.github.client.GithubAnalysisClient;
 import com.gitddo.github.client.GithubBlobPayload;
@@ -34,7 +35,8 @@ class P0EvidenceCollectorTests {
 		GithubAnalysisClient client = mock(GithubAnalysisClient.class);
 		P0EvidenceCollector collector = new P0EvidenceCollector(
 				client,
-				new P0FileSelectionPolicy()
+				new P0FileSelectionPolicy(),
+				new P0TechnologyDetector()
 		);
 		when(client.fetchRepository("token", "git-ddo", "backend"))
 				.thenReturn(repositoryPayload());
@@ -88,7 +90,8 @@ class P0EvidenceCollectorTests {
 						EvidenceKind.FILE_TREE_SUMMARY,
 						EvidenceKind.README,
 						EvidenceKind.BUILD_MANIFEST,
-						EvidenceKind.PROJECT_STRUCTURE
+						EvidenceKind.PROJECT_STRUCTURE,
+						EvidenceKind.TECHNOLOGY_DETECTED
 				);
 		assertThat(snapshot.evidence())
 				.filteredOn(evidence -> evidence.kind() == EvidenceKind.README)
@@ -100,6 +103,18 @@ class P0EvidenceCollectorTests {
 		assertThat(snapshot.evidence())
 				.filteredOn(evidence -> evidence.kind() == EvidenceKind.BUILD_MANIFEST)
 				.hasSize(2);
+		assertThat(snapshot.evidence())
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.TECHNOLOGY_DETECTED)
+				.extracting(P0EvidenceSnapshot.Evidence::content)
+				.contains("Gradle", "Java")
+				.doesNotContain("Spring Boot");
+		assertThat(snapshot.evidence())
+				.filteredOn(evidence -> evidence.kind() == EvidenceKind.TECHNOLOGY_DETECTED)
+				.allSatisfy(evidence -> {
+					assertThat(evidence.evidenceType()).isEqualTo(EvidenceType.BACKEND_DERIVED);
+					assertThat(evidence.sourceEvidenceRefs()).isNotEmpty();
+					assertThat(evidence.path()).isNull();
+				});
 
 		String fileTreeSummaryId = snapshot.evidence().stream()
 				.filter(evidence -> evidence.kind() == EvidenceKind.FILE_TREE_SUMMARY)

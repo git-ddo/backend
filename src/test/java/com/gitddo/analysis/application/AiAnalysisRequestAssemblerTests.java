@@ -65,17 +65,22 @@ class AiAnalysisRequestAssemblerTests {
 					.contains(
 							EvidenceKind.README.name(),
 							EvidenceKind.BUILD_MANIFEST.name(),
-							EvidenceKind.PROJECT_STRUCTURE.name()
+							EvidenceKind.PROJECT_STRUCTURE.name(),
+							EvidenceKind.TECHNOLOGY_DETECTED.name()
 					);
 			assertThat(repository.evidence())
 					.allMatch(item -> item.valueType() == EvidenceValueType.STRING);
 			assertThat(repository.evidence())
 					.filteredOn(item -> "BACKEND_DERIVED".equals(item.evidenceType()))
-					.singleElement()
-					.satisfies(item -> {
+					.isNotEmpty()
+					.allSatisfy(item -> {
 						assertThat(item.derivedFromLevel()).isEqualTo(AnalysisDepth.P0);
 						assertThat(item.sourceEvidenceRefs()).isNotEmpty();
 					});
+			assertThat(repository.evidence())
+					.filteredOn(item -> EvidenceKind.TECHNOLOGY_DETECTED.name().equals(item.factKey()))
+					.extracting(AiAnalysisRequest.Evidence::value)
+					.contains("Gradle", "Java");
 		});
 	}
 
@@ -296,7 +301,7 @@ class AiAnalysisRequestAssemblerTests {
 				.thenReturn(blob("readme-sha", "# Backend"));
 		when(client.fetchBlob("token", "git-ddo", "backend", "build-sha"))
 				.thenReturn(blob("build-sha", "plugins { id 'java' }"));
-		return new P0EvidenceCollector(client, new P0FileSelectionPolicy());
+		return new P0EvidenceCollector(client, new P0FileSelectionPolicy(), new P0TechnologyDetector());
 	}
 
 	private com.gitddo.analysis.domain.EvaluationInputSnapshot inputSnapshot() {
