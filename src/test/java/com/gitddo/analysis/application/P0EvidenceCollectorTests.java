@@ -21,6 +21,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -148,6 +149,82 @@ class P0EvidenceCollectorTests {
 				.fetchBlob("token", "git-ddo", "backend", "env-sha");
 	}
 
+	@Test
+	void keepsTechnologySourcesInsideTheSameRepository() {
+		GithubAnalysisClient client = mock(GithubAnalysisClient.class);
+		P0EvidenceCollector collector = new P0EvidenceCollector(
+				client,
+				new P0FileSelectionPolicy(),
+				new P0TechnologyDetector()
+		);
+		stubSpringGradleRepository(
+				client,
+				"git-ddo",
+				"backend",
+				111L,
+				"commit-a",
+				"tree-a",
+				"build-a"
+		);
+		stubSpringGradleRepository(
+				client,
+				"congraduation-team",
+				"congraduation-backend",
+				222L,
+				"commit-b",
+				"tree-b",
+				"build-b"
+		);
+
+		P0EvidenceSnapshot snapshot = collector.collect(
+				"token",
+				new EvaluationInputSnapshot(
+						1,
+						1L,
+						0L,
+						"Backend Portfolio",
+						EvaluationPurpose.PORTFOLIO_REVIEW,
+						TargetLevel.ENTRY,
+						Set.of(EvaluationArea.BACKEND),
+						"git-ddo-user",
+						List.of(
+								repositoryInput(111L, "git-ddo/backend"),
+								repositoryInput(222L, "congraduation-team/congraduation-backend")
+						)
+				)
+		);
+
+		Map<String, P0EvidenceSnapshot.Evidence> evidenceById = snapshot.evidence().stream()
+				.collect(Collectors.toMap(
+						P0EvidenceSnapshot.Evidence::evidenceId,
+						evidence -> evidence
+				));
+		List<P0EvidenceSnapshot.Evidence> detectedTechnologies = snapshot.evidence().stream()
+				.filter(evidence -> evidence.kind() == EvidenceKind.TECHNOLOGY_DETECTED)
+				.toList();
+
+		assertThat(detectedTechnologies).isNotEmpty();
+		assertThat(detectedTechnologies)
+				.extracting(P0EvidenceSnapshot.Evidence::content)
+				.contains("Gradle", "Spring Boot");
+		assertThat(detectedTechnologies)
+				.filteredOn(evidence -> "111".equals(evidence.repositoryId()))
+				.extracting(P0EvidenceSnapshot.Evidence::content)
+				.contains("Gradle", "Spring Boot");
+		assertThat(detectedTechnologies)
+				.filteredOn(evidence -> "222".equals(evidence.repositoryId()))
+				.extracting(P0EvidenceSnapshot.Evidence::content)
+				.contains("Gradle", "Spring Boot");
+		assertThat(detectedTechnologies).allSatisfy(evidence -> {
+			assertThat(evidence.sourceEvidenceRefs()).isNotEmpty();
+			assertThat(evidence.sourceEvidenceRefs()).allSatisfy(sourceId -> {
+				P0EvidenceSnapshot.Evidence source = evidenceById.get(sourceId);
+				assertThat(source).isNotNull();
+				assertThat(source.repositoryId()).isEqualTo(evidence.repositoryId());
+			});
+		});
+	}
+
 	private EvaluationInputSnapshot inputSnapshot() {
 		return new EvaluationInputSnapshot(
 				1,
@@ -168,6 +245,71 @@ class P0EvidenceCollectorTests {
 						List.of()
 				))
 		);
+	}
+
+	private EvaluationInputSnapshot.RepositorySnapshot repositoryInput(Long githubRepositoryId, String fullName) {
+		return new EvaluationInputSnapshot.RepositorySnapshot(
+				githubRepositoryId,
+				fullName,
+				"https://github.com/" + fullName,
+				"Java",
+				"API를 구현했습니다.",
+				"Backend",
+				List.of()
+		);
+	}
+
+	private void stubSpringGradleRepository(
+			GithubAnalysisClient client,
+			String owner,
+			String name,
+			Long githubRepositoryId,
+			String commitSha,
+			String treeSha,
+			String buildSha
+	) {
+		when(client.fetchRepository("token", owner, name))
+				.thenReturn(new GithubRepositoryPayload(
+						githubRepositoryId,
+						name,
+						owner + "/" + name,
+						"Backend service",
+						"https://github.com/" + owner + "/" + name,
+						"Java",
+						false,
+						false,
+						"main",
+						1,
+						0,
+						Instant.parse("2026-08-17T00:00:00Z"),
+						Instant.parse("2026-08-17T00:00:00Z")
+				));
+		when(client.fetchCommitSnapshot("token", owner, name, "main"))
+				.thenReturn(new GithubCommitSnapshotPayload(
+						commitSha,
+						new GithubCommitSnapshotPayload.CommitPayload(
+								new GithubCommitSnapshotPayload.TreePayload(treeSha)
+						)
+				));
+		when(client.fetchLanguages("token", owner, name))
+				.thenReturn(Map.of("Java", 10_000L));
+		when(client.fetchTree("token", owner, name, treeSha))
+				.thenReturn(new GithubTreePayload(
+						treeSha,
+						false,
+						List.of(entry("build.gradle", buildSha, 80L))
+				));
+		when(client.fetchBlob("token", owner, name, buildSha))
+				.thenReturn(blob(
+						buildSha,
+						"""
+								plugins {
+								  id 'java'
+								  id 'org.springframework.boot'
+								}
+								implementation 'org.springframework.boot:spring-boot-starter-web'
+								"""
+				));
 	}
 
 	private GithubRepositoryPayload repositoryPayload() {
