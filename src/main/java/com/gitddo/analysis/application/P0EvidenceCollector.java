@@ -271,6 +271,9 @@ public class P0EvidenceCollector {
 	) {
 		Map<String, EvidenceCandidate> sourceByTechnology = new LinkedHashMap<>();
 		for (EvidenceCandidate candidate : List.copyOf(candidates)) {
+			if (!repositoryId.equals(candidate.repositoryId())) {
+				continue;
+			}
 			if (!technologyDetector.isSourceKind(candidate.kind())) {
 				continue;
 			}
