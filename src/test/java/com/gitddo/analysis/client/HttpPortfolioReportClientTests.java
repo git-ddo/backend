@@ -4,13 +4,13 @@ import com.gitddo.analysis.AnalysisContractFixtures;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
 import com.gitddo.analysis.contract.AiErrorCode;
 import com.gitddo.analysis.contract.Confidence;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 
@@ -25,7 +25,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 class HttpPortfolioReportClientTests {
 
-	private final ObjectMapper objectMapper = new ObjectMapper();
+	private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
 	@Test
 	void postsRequestToInternalReportsPath() {
@@ -34,7 +34,7 @@ class HttpPortfolioReportClientTests {
 		RestClient restClient = builder.baseUrl("http://ai.example").build();
 		HttpPortfolioReportClient client = new HttpPortfolioReportClient(
 				restClient,
-				objectMapper,
+				jsonMapper,
 				"/internal/v1/portfolio-reports"
 		);
 
@@ -111,7 +111,7 @@ class HttpPortfolioReportClientTests {
 		RestClient restClient = builder.baseUrl("http://ai.example").build();
 		HttpPortfolioReportClient client = new HttpPortfolioReportClient(
 				restClient,
-				objectMapper,
+				jsonMapper,
 				"/internal/v1/portfolio-reports"
 		);
 		server.expect(requestTo("http://ai.example/internal/v1/portfolio-reports"))
@@ -129,7 +129,7 @@ class HttpPortfolioReportClientTests {
 		RestClient restClient = builder.baseUrl("http://ai.example").build();
 		HttpPortfolioReportClient client = new HttpPortfolioReportClient(
 				restClient,
-				objectMapper,
+				jsonMapper,
 				"/internal/v1/portfolio-reports"
 		);
 		server.expect(requestTo("http://ai.example/internal/v1/portfolio-reports"))
@@ -164,7 +164,7 @@ class HttpPortfolioReportClientTests {
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		HttpPortfolioReportClient client = new HttpPortfolioReportClient(
 				builder.baseUrl("http://ai.example").build(),
-				objectMapper,
+				jsonMapper,
 				"/internal/v1/portfolio-reports",
 				3,
 				Duration.ZERO
@@ -245,7 +245,7 @@ class HttpPortfolioReportClientTests {
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		HttpPortfolioReportClient client = new HttpPortfolioReportClient(
 				builder.baseUrl("http://ai.example").build(),
-				objectMapper,
+				jsonMapper,
 				"/internal/v1/portfolio-reports",
 				3,
 				Duration.ZERO

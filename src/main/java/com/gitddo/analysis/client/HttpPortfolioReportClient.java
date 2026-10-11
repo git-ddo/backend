@@ -3,10 +3,9 @@ package com.gitddo.analysis.client;
 import com.gitddo.analysis.contract.AiAnalysisError;
 import com.gitddo.analysis.contract.AiAnalysisRequest;
 import com.gitddo.analysis.contract.AiAnalysisResponse;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,6 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 
@@ -26,20 +27,21 @@ public class HttpPortfolioReportClient implements PortfolioReportClient {
 	private static final Logger log = LoggerFactory.getLogger(HttpPortfolioReportClient.class);
 
 	private final RestClient aiRestClient;
-	private final ObjectMapper objectMapper;
+	private final JsonMapper jsonMapper;
 	private final String reportsPath;
 	private final int maxAttempts;
 	private final Duration retryDelay;
 
+	@Autowired
 	public HttpPortfolioReportClient(
 			@Qualifier("aiRestClient") RestClient aiRestClient,
-			ObjectMapper objectMapper,
+			JsonMapper jsonMapper,
 			@Value("${gitddo.ai.reports-path:/internal/v1/portfolio-reports}") String reportsPath,
 			@Value("${gitddo.ai.max-attempts:3}") int maxAttempts,
 			@Value("${gitddo.ai.retry-delay:2s}") Duration retryDelay
 	) {
 		this.aiRestClient = aiRestClient;
-		this.objectMapper = objectMapper;
+		this.jsonMapper = jsonMapper;
 		this.reportsPath = reportsPath;
 		this.maxAttempts = Math.max(1, maxAttempts);
 		this.retryDelay = retryDelay == null ? Duration.ZERO : retryDelay;
@@ -47,10 +49,10 @@ public class HttpPortfolioReportClient implements PortfolioReportClient {
 
 	HttpPortfolioReportClient(
 			RestClient aiRestClient,
-			ObjectMapper objectMapper,
+			JsonMapper jsonMapper,
 			String reportsPath
 	) {
-		this(aiRestClient, objectMapper, reportsPath, 1, Duration.ZERO);
+		this(aiRestClient, jsonMapper, reportsPath, 1, Duration.ZERO);
 	}
 
 	@Override
@@ -115,7 +117,7 @@ public class HttpPortfolioReportClient implements PortfolioReportClient {
 		String body = exception.getResponseBodyAsString();
 		if (body != null && !body.isBlank()) {
 			try {
-				AiAnalysisError error = objectMapper.readValue(body, AiAnalysisError.class);
+				AiAnalysisError error = jsonMapper.readValue(body, AiAnalysisError.class);
 				if (error.code() != null) {
 					return new AiAnalysisClientException(
 							error.code() + ": " + error.message() + " (retryable=" + error.retryable() + ")",
@@ -124,7 +126,7 @@ public class HttpPortfolioReportClient implements PortfolioReportClient {
 							error.retryable()
 					);
 				}
-			} catch (JsonProcessingException ignored) {
+			} catch (JacksonException ignored) {
 				// fall through to status code
 			}
 		}
