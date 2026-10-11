@@ -147,7 +147,7 @@
           "type": "array",
           "items": { "type": "string", "pattern": "^ev_[0-9]{3,}$" }
         },
-        "derivedFromLevel": { "enum": ["P0", "P1", "P2"], "type": ["string", "null"] }
+        "derivedFromLevel": { "enum": ["P0", "P1", "P2", null] }
       }
     }
   }
