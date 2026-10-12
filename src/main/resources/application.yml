@@ -47,6 +47,7 @@ management:
       show-details: always
 
 gitddo:
+  frontend-url: ${GITDDO_FRONTEND_URL:http://localhost:5173}
   github:
     connect-timeout: ${GITDDO_GITHUB_CONNECT_TIMEOUT:5s}
     read-timeout: ${GITDDO_GITHUB_READ_TIMEOUT:30s}
