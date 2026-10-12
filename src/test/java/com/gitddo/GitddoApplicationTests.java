@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
@@ -19,7 +20,9 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -111,9 +114,36 @@ class GitddoApplicationTests {
 	}
 
 	@Test
-	void redirectsUnauthenticatedUserToLogin() throws Exception {
+	void returnsUnauthorizedForUnauthenticatedApiRequest() throws Exception {
 		mockMvc.perform(get("/api/v1/me"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().doesNotExist("Location"));
+	}
+
+	@Test
+	void redirectsUnauthenticatedNonApiRequestToLogin() throws Exception {
+		mockMvc.perform(get("/some-page").accept(MediaType.TEXT_HTML))
 				.andExpect(status().is3xxRedirection());
+	}
+
+	@Test
+	void allowsCorsPreflightFromFrontendOrigin() throws Exception {
+		mockMvc.perform(options("/api/v1/portfolios")
+						.header("Origin", "http://localhost:5173")
+						.header("Access-Control-Request-Method", "POST")
+						.header("Access-Control-Request-Headers", "Content-Type, X-XSRF-TOKEN"))
+				.andExpect(status().isOk())
+				.andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+				.andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+	}
+
+	@Test
+	void rejectsCorsPreflightFromUnlistedOrigin() throws Exception {
+		mockMvc.perform(options("/api/v1/portfolios")
+						.header("Origin", "http://evil.example.com")
+						.header("Access-Control-Request-Method", "POST"))
+				.andExpect(status().isForbidden())
+				.andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
 	}
 
 	@Test
